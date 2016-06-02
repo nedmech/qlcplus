@@ -32,6 +32,13 @@ target.path = $$INSTALLROOT/$$PLUGINDIR
 INSTALLS   += target
 
 # UDEV rule to make Peperoni USB devices readable & writable for users in Linux
-udev.path  = /etc/udev/rules.d
+udev.path  = $$UDEVRULESDIR
 udev.files = z65-peperoni.rules
 !macx:INSTALLS  += udev
+
+unix:!macx {
+   metainfo.path   = $$INSTALLROOT/share/appdata/
+   metainfo.files += qlcplus-peperoni.metainfo.xml
+   INSTALLS       += metainfo 
+}
+

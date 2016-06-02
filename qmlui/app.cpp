@@ -17,8 +17,9 @@
   limitations under the License.
 */
 
+#include <QXmlStreamReader>
+#include <QXmlStreamWriter>
 #include <QFontDatabase>
-#include <QDomDocument>
 #include <QQmlContext>
 #include <QQuickItem>
 #include <QSettings>
@@ -26,15 +27,19 @@
 
 #include "app.h"
 #include "mainview2d.h"
+#include "showmanager.h"
+#include "actionmanager.h"
+#include "modelselector.h"
+#include "contextmanager.h"
+#include "virtualconsole.h"
 #include "fixturebrowser.h"
 #include "fixturemanager.h"
 #include "functionmanager.h"
-#include "contextmanager.h"
-#include "virtualconsole.h"
 #include "inputoutputmanager.h"
 
-#include "rgbscriptscache.h"
 #include "qlcfixturedefcache.h"
+#include "audioplugincache.h"
+#include "rgbscriptscache.h"
 #include "qlcfixturedef.h"
 #include "qlcconfig.h"
 #include "qlcfile.h"
@@ -65,6 +70,7 @@ void App::startup()
 {
     qmlRegisterType<Fixture>("com.qlcplus.classes", 1, 0, "Fixture");
     qmlRegisterType<Function>("com.qlcplus.classes", 1, 0, "Function");
+    qmlRegisterType<ModelSelector>("com.qlcplus.classes", 1, 0, "ModelSelector");
 
     setTitle("Q Light Controller Plus");
     setIcon(QIcon(":/qlcplus.png"));
@@ -97,6 +103,13 @@ void App::startup()
     m_virtualConsole = new VirtualConsole(this, m_doc);
     rootContext()->setContextProperty("virtualConsole", m_virtualConsole);
 
+    m_showManager = new ShowManager(this, m_doc);
+    rootContext()->setContextProperty("showManager", m_showManager);
+
+    m_actionManager = new ActionManager(this, m_functionManager, m_showManager);
+    rootContext()->setContextProperty("actionManager", m_actionManager);
+    qmlRegisterType<ActionManager>("com.qlcplus.classes", 1, 0, "ActionManager"); // to use the enums in QML
+
     // Start up in non-modified state
     m_doc->resetModified();
 
@@ -127,7 +140,7 @@ void App::clearDocument()
     m_doc->clearContents();
     m_virtualConsole->resetContents();
     //SimpleDesk::instance()->clearContents();
-    //ShowManager::instance()->clearContents();
+    m_showManager->resetContents();
     m_doc->inputOutputMap()->resetUniverses();
     setFileName(QString());
     m_doc->resetModified();
@@ -175,6 +188,12 @@ void App::initDoc()
 #else
     m_doc->ioPluginCache()->load(IOPluginCache::systemPluginDirectory());
 #endif
+
+    /* Load audio decoder plugins
+     * This doesn't use a AudioPluginCache::systemPluginDirectory() cause
+     * otherwise the qlcconfig.h creation should have been moved into the
+     * audio folder, which doesn't make much sense */
+    m_doc->audioPluginCache()->load(QLCFile::systemDirectory(AUDIOPLUGINDIR, KExtPlugin));
 
     /* Restore outputmap settings */
     Q_ASSERT(m_doc->inputOutputMap() != NULL);
@@ -310,70 +329,92 @@ QFileDevice::FileError App::loadXML(const QString &fileName)
 {
     QFile::FileError retval = QFile::NoError;
 
-    QDomDocument doc(QLCFile::readXML(fileName));
-    if (doc.isNull() == false)
+    if (fileName.isEmpty() == true)
+        return QFile::OpenError;
+
+    QXmlStreamReader *doc = QLCFile::getXMLReader(fileName);
+    if (doc == NULL || doc->device() == NULL || doc->hasError())
     {
-        if (doc.doctype().name() == KXMLQLCWorkspace)
-        {
-            if (loadXML(doc) == false)
-            {
-                retval = QFile::ReadError;
-            }
-            else
-            {
-                setFileName(fileName);
-                m_doc->resetModified();
-                retval = QFile::NoError;
-            }
-        }
-        else
+        qWarning() << Q_FUNC_INFO << "Unable to read from" << fileName;
+        return QFile::ReadError;
+    }
+
+    while (!doc->atEnd())
+    {
+        if (doc->readNext() == QXmlStreamReader::DTD)
+            break;
+    }
+    if (doc->hasError())
+    {
+        QLCFile::releaseXMLReader(doc);
+        return QFile::ResourceError;
+    }
+
+    if (doc->dtdName() == KXMLQLCWorkspace)
+    {
+        if (loadXML(*doc) == false)
         {
             retval = QFile::ReadError;
         }
+        else
+        {
+            setFileName(fileName);
+            m_doc->resetModified();
+            retval = QFile::NoError;
+        }
     }
+    else
+    {
+        retval = QFile::ReadError;
+        qWarning() << Q_FUNC_INFO << fileName
+                   << "is not a workspace file";
+    }
+
+    QLCFile::releaseXMLReader(doc);
 
     return retval;
 }
 
-bool App::loadXML(const QDomDocument &doc, bool goToConsole, bool fromMemory)
+bool App::loadXML(QXmlStreamReader &doc, bool goToConsole, bool fromMemory)
 {
     Q_UNUSED(goToConsole) // TODO
-    Q_ASSERT(m_doc != NULL);
+    if (doc.readNextStartElement() == false)
+        return false;
 
-    QDomElement root = doc.documentElement();
-    if (root.tagName() != KXMLQLCWorkspace)
+    if (doc.name() != KXMLQLCWorkspace)
     {
         qWarning() << Q_FUNC_INFO << "Workspace node not found";
         return false;
     }
 
-    //QString activeWindowName = root.attribute(KXMLQLCWorkspaceWindow);
+    //QString activeWindowName = doc.attributes().value(KXMLQLCWorkspaceWindow).toString();
 
-    QDomNode node = root.firstChild();
-    while (node.isNull() == false)
+    while (doc.readNextStartElement())
     {
-        QDomElement tag = node.toElement();
-
-        if (tag.tagName() == KXMLQLCEngine)
+        if (doc.name() == KXMLQLCEngine)
         {
-            m_doc->loadXML(tag);
+            m_doc->loadXML(doc);
         }
-        else if (tag.tagName() == KXMLQLCVirtualConsole)
+        else if (doc.name() == KXMLQLCVirtualConsole)
         {
-            m_virtualConsole->loadXML(tag);
+            m_virtualConsole->loadXML(doc);
         }
 #if 0
-        else if (tag.tagName() == KXMLQLCSimpleDesk)
+        else if (doc.name() == KXMLQLCSimpleDesk)
         {
-            SimpleDesk::instance()->loadXML(tag);
+            SimpleDesk::instance()->loadXML(doc);
         }
 #endif
+        else if (doc.name() == KXMLQLCCreator)
+        {
+            /* Ignore creator information */
+            doc.skipCurrentElement();
+        }
         else
         {
-            qWarning() << Q_FUNC_INFO << "Unknown Workspace tag:" << tag.tagName();
+            qWarning() << Q_FUNC_INFO << "Unknown Workspace tag:" << doc.name().toString();
+            doc.skipCurrentElement();
         }
-
-        node = node.nextSibling();
     }
 
 /*

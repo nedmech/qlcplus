@@ -368,7 +368,7 @@ void AddFixture::findAddress()
 }
 
 quint32 AddFixture::findAddress(quint32 numChannels,
-                                const QList <Fixture*> fixtures,
+                                QList<Fixture*> const& fixtures,
                                 quint32 maxUniverses)
 {
     /* Try to find contiguous space from one universe at a time */
@@ -383,7 +383,7 @@ quint32 AddFixture::findAddress(quint32 numChannels,
 }
 
 quint32 AddFixture::findAddress(quint32 universe, quint32 numChannels,
-                                const QList <Fixture*> fixtures)
+                                QList<Fixture*> const& fixtures, quint32 currentFixture)
 {
     quint32 freeSpace = 0;
     quint32 maxChannels = 512;
@@ -399,6 +399,9 @@ quint32 AddFixture::findAddress(quint32 universe, quint32 numChannels,
         Q_ASSERT(fxi != NULL);
 
         if (fxi->universe() != universe)
+            continue;
+
+        if (fxi->id() == currentFixture && currentFixture != Fixture::invalidId())
             continue;
 
         for (quint32 ch = 0; ch < fxi->channels(); ch++)
@@ -422,7 +425,7 @@ quint32 AddFixture::findAddress(quint32 universe, quint32 numChannels,
 
 void AddFixture::updateMaximumAmount()
 {
-    m_amountSpin->setRange(1, (512 - m_addressSpin->value()) /
+    m_amountSpin->setRange(1, (513 - m_addressSpin->value()) /
                            (m_channelsSpin->value() + m_gapSpin->value()));
 }
 
@@ -468,19 +471,6 @@ void AddFixture::slotModeActivated(const QString& modeName)
             QString("%1: %2").arg(i + 1).arg(channel->name()),
             m_channelList);
     }
-
-    int absAddress = ((m_addressSpin->value() - 1) & 0x01FF) | (m_universeValue << 9);
-    if (checkAddressAvailability(absAddress, m_channelsSpin->value()) == false)
-    {
-        // turn the new address to red
-        m_addrErrorLabel->show();
-        m_invalidAddressFlag = true;
-    }
-    else
-    {
-        m_addrErrorLabel->hide();
-        m_invalidAddressFlag = false;
-    }
 }
 
 void AddFixture::slotUniverseActivated(int universe)
@@ -490,7 +480,7 @@ void AddFixture::slotUniverseActivated(int universe)
     /* Adjust the available address range */
     slotChannelsChanged(m_channelsValue);
 
-    quint32 addr = findAddress(universe, m_channelsSpin->value(), m_doc->fixtures());
+    quint32 addr = findAddress(universe, m_channelsSpin->value(), m_doc->fixtures(), m_fixtureID);
     if (addr != QLCChannel::invalid())
         m_addressSpin->setValue((addr & 0x01FF) + 1);
     else
@@ -499,24 +489,12 @@ void AddFixture::slotUniverseActivated(int universe)
 
 void AddFixture::slotAddressChanged(int value)
 {
-    int absAddress = ((value - 1) & 0x01FF) | (m_universeValue << 9);
-    if (checkAddressAvailability(absAddress, m_channelsSpin->value()) == false)
-    {
-        // turn the new address to red
-        m_addrErrorLabel->show();
-        m_invalidAddressFlag = true;
-        return;
-    }
-    else
-    {
-        m_addrErrorLabel->hide();
-        m_invalidAddressFlag = false;
-    }
-
     m_addressValue = value - 1;
 
     /* Set the maximum number of fixtures */
     updateMaximumAmount();
+
+    checkOverlapping();
 }
 
 void AddFixture::slotChannelsChanged(int value)
@@ -529,6 +507,8 @@ void AddFixture::slotChannelsChanged(int value)
 
     /* Set the maximum number of fixtures */
     updateMaximumAmount();
+
+    checkOverlapping();
 }
 
 void AddFixture::slotNameEdited(const QString &text)
@@ -545,6 +525,8 @@ void AddFixture::slotNameEdited(const QString &text)
 void AddFixture::slotAmountSpinChanged(int value)
 {
     m_amountValue = value;
+
+    checkOverlapping();
 }
 
 void AddFixture::slotGapSpinChanged(int value)
@@ -553,6 +535,8 @@ void AddFixture::slotGapSpinChanged(int value)
 
     /* Set the maximum number of fixtures */
     updateMaximumAmount();
+
+    checkOverlapping();
 }
 
 void AddFixture::slotSearchFilterChanged(QString)
@@ -616,6 +600,7 @@ void AddFixture::slotSelectionChanged()
         }
         fillModeCombo();
         m_modeCombo->setEnabled(false);
+        m_channelsSpin->setValue(1);
         m_channelsSpin->setEnabled(true);
         m_channelList->clear();
 
@@ -668,7 +653,7 @@ void AddFixture::slotSelectionChanged()
     m_gapSpin->setEnabled(true);
 
     /* Recalculate the first available address for the newly selected fixture */
-    quint32 addr = findAddress(m_universeValue, m_channelsSpin->value(), m_doc->fixtures());
+    quint32 addr = findAddress(m_universeValue, m_channelsSpin->value(), m_doc->fixtures(), m_fixtureID);
     if (addr != QLCChannel::invalid())
         m_addressSpin->setValue((addr & 0x01FF) + 1);
     else
@@ -692,4 +677,23 @@ void AddFixture::slotDiptoolButtonClicked()
     AddressTool at(this, m_addressSpin->value());
     at.exec();
     m_addressSpin->setValue(at.getAddress());
+}
+
+void AddFixture::checkOverlapping()
+{
+    for (int i = 0; i < m_amountValue; ++i)
+    {
+        int address = m_addressValue + i * (m_gapValue + m_channelsValue);
+        int absAddress = (address & 0x01FF) | (m_universeValue << 9);
+        if (checkAddressAvailability(absAddress, m_channelsValue) == false)
+        {
+            // Show overlapping error
+            m_addrErrorLabel->show();
+            m_invalidAddressFlag = true;
+            return;
+        }
+    }
+
+    m_addrErrorLabel->hide();
+    m_invalidAddressFlag = false;
 }

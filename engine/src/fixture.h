@@ -1,8 +1,9 @@
 /*
-  Q Light Controller
+  Q Light Controller Plus
   fixture.h
 
   Copyright (C) Heikki Junnila
+                Massimo Callegari
 
   Licensed under the Apache License, Version 2.0 (the "License");
   you may not use this file except in compliance with the License.
@@ -28,8 +29,6 @@
 
 #include "qlcchannel.h"
 
-class QDomDocument;
-class QDomElement;
 class QString;
 
 class QLCFixtureDefCache;
@@ -453,7 +452,7 @@ public:
      * @param root The Fixture node to load from
      * @param doc The doc that owns all fixtures
      */
-    static bool loader(const QDomElement& root, Doc* doc);
+    static bool loader(QXmlStreamReader &root, Doc* doc);
 
     /**
      * Load a fixture's contents from the given XML node.
@@ -461,7 +460,7 @@ public:
      * @param root An XML subtree containing a single fixture instance
      * @return true if the fixture was loaded successfully, otherwise false
      */
-    bool loadXML(const QDomElement& root, Doc* doc,
+    bool loadXML(QXmlStreamReader &xmlDoc, Doc* doc,
                  const QLCFixtureDefCache* fixtureDefCache);
 
     /**
@@ -471,7 +470,7 @@ public:
      * @param doc The master XML document to save to.
      * @param wksp_root The workspace root element
      */
-    bool saveXML(QDomDocument* doc, QDomElement* wksp_root) const;
+    bool saveXML(QXmlStreamWriter *doc) const;
 
     /*********************************************************************
      * Status

@@ -56,22 +56,37 @@ private:
     quint32 m_channel;
 
     /*********************************************************************
+     * Custom feedback
+     *********************************************************************/
+public:
+    void setRange(uchar lower, uchar upper);
+    uchar lowerValue() const;
+    uchar upperValue() const;
+
+protected:
+    uchar m_lower, m_upper;
+
+    /*********************************************************************
      * Working mode
      *********************************************************************/
 public:
     /** Movement behaviour */
     enum WorkingMode {
         Absolute = 0,
-        Relative = 1
+        Relative = 1,
+        Encoder = 2
     };
 
     WorkingMode workingMode() const;
     void setWorkingMode(WorkingMode mode);
 
-    bool isRelative();
+    bool needsUpdate();
 
     int sensitivity() const;
     void setSensitivity(int value);
+
+    bool sendExtraPressRelease() const;
+    void setSendExtraPressRelease(bool enable);
 
     void updateInputValue(uchar value);
     void updateOuputValue(uchar value);
@@ -87,6 +102,10 @@ protected:
     /** When in relative mode, this defines the sensitivity
      *  of synthetic emitted values against the external input value */
     int m_sensitivity;
+
+    /** When enabled, this flag will emit an extra synthetic signal
+     *  to simulate a press or release event */
+    bool m_emitExtraPressRelease;
 
     /** The input value received from an external controller */
     uchar m_inputValue;

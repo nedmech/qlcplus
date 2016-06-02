@@ -37,21 +37,24 @@ Rectangle
     property string currentView: "2D"
     property bool docLoaded: qlcplus.docLoaded
 
-    function enableContext(ctx)
+    function enableContext(ctx, setChecked)
     {
-        if (ctx === "UniverseGrid")
-            uniView.visible = true
+        var item = null
+        if (ctx === "UNIGRID")
+            item = uniView
         else if (ctx === "DMX")
-            dmxView.visible = true
+            item = dmxView
         else if (ctx === "2D")
-            twodView.visible = true
-    }
+            item = twodView
+        else if (ctx === "3D")
+            item = threedView
 
-    onDocLoadedChanged:
-    {
-        // a new Doc has been loaded. Do here all the operations to
-        // reset/restore the view (active contexts are updated in C++)
-        viewUniverseCombo.model = ioManager.universeNames
+        if (item)
+        {
+            item.visible = true
+            if (setChecked)
+                item.checked = true
+        }
     }
 
     LeftPanel
@@ -121,7 +124,7 @@ Rectangle
                         if (checked == true)
                         {
                             currentViewQML = "qrc:/UniverseGridView.qml"
-                            currentView = "UniverseGrid"
+                            currentView = "UNIGRID"
                         }
                     }
                     onRightClicked:
@@ -203,14 +206,16 @@ Rectangle
                 CustomComboBox
                 {
                     id: viewUniverseCombo
-                    width: 100
-                    height: 20
-                    anchors.margins: 4
-                    model: ioManager.universeNames
+                    width: 120
+                    height: 26
+                    anchors.margins: 1
+                    model: ioManager.universesListModel
 
-                    onCurrentIndexChanged:
+                    onValueChanged:
                     {
                         // set the universe filter here
+                        contextManager.universeFilter = value
+                        fixtureManager.universeFilter = value
                     }
                 }
 
@@ -225,17 +230,13 @@ Rectangle
                     onToggled: previewLoader.item.showSettings(checked)
                 }
 
-                IconButton
+                ZoomItem
                 {
+                    width: 70
                     height: viewToolbar.height - 2
-                    faSource: FontAwesome.fa_search_minus
-                    onClicked: previewLoader.item.setZoom(-0.5)
-                }
-                IconButton
-                {
-                    height: viewToolbar.height - 2
-                    faSource: FontAwesome.fa_search_plus
-                    onClicked: previewLoader.item.setZoom(0.5)
+                    fontColor: "#222"
+                    onZoomOutClicked: previewLoader.item.setZoom(-0.5)
+                    onZoomInClicked: previewLoader.item.setZoom(0.5)
                 }
             }
         }

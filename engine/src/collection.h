@@ -1,8 +1,9 @@
 /*
-  Q Light Controller
+  Q Light Controller Plus
   collection.h
 
   Copyright (c) Heikki Junnila
+                Massimo Callegari
 
   Licensed under the Apache License, Version 2.0 (the "License");
   you may not use this file except in compliance with the License.
@@ -27,7 +28,7 @@
 
 #include "function.h"
 
-class QDomDocument;
+class QXmlStreamReader;
 
 /** @addtogroup engine_functions Functions
  * @{
@@ -47,6 +48,9 @@ public:
     Collection();
     Collection(Doc* doc);
     virtual ~Collection();
+
+    /** @reimpl */
+    quint32 totalDuration();
 
     /*********************************************************************
      * Copying
@@ -69,7 +73,7 @@ public:
      * @param fid The function to add
      * @return true if successful, otherwise false
      */
-    Q_INVOKABLE bool addFunction(quint32 fid);
+    Q_INVOKABLE bool addFunction(quint32 fid, int insertIndex = -1);
 
     /**
      * Remove a function from this collection. If the function is not a
@@ -102,20 +106,29 @@ protected:
      *********************************************************************/
 public:
     /** Save function's contents to an XML document */
-    bool saveXML(QDomDocument* doc, QDomElement* wksp_root);
+    bool saveXML(QXmlStreamWriter *doc);
 
     /** Load function's contents from an XML document */
-    bool loadXML(const QDomElement& root);
+    bool loadXML(QXmlStreamReader &root);
 
     /** @reimp */
     void postLoad();
 
+public:
+    virtual bool contains(quint32 functionId);
+
     /*********************************************************************
      * Running
      *********************************************************************/
+private:
+    FunctionParent functionParent() const;
+
 public:
     /** @reimpl */
     void preRun(MasterTimer* timer);
+
+    /** @reimpl */
+    void setPause(bool enable);
 
     /** @reimpl */
     void write(MasterTimer* timer, QList<Universe *> universes);
@@ -127,9 +140,13 @@ protected slots:
     /** Called whenever one of this function's child functions stops */
     void slotChildStopped(quint32 fid);
 
+    /** Called whenever one of this function's child functions stops */
+    void slotChildStarted(quint32 fid);
+
 protected:
     /** Number of currently running children */
     QSet <quint32> m_runningChildren;
+    unsigned int m_tick;
 
     /*************************************************************************
      * Intensity

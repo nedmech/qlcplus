@@ -20,6 +20,7 @@
 import QtQuick 2.0
 import QtQuick.Layouts 1.1
 import QtQuick.Dialogs 1.1
+import QtQuick.Controls 1.2
 
 import com.qlcplus.classes 1.0
 import "."
@@ -30,202 +31,233 @@ Rectangle
     anchors.fill: parent
     color: "transparent"
 
-    property VCWidget wObj: virtualConsole.selectedWidget
+    property VCWidget wObj
 
-    RobotoText
+    Component.onCompleted: wObj = Qt.binding(function() { return virtualConsole.selectedWidget })
+    Component.onDestruction: virtualConsole.resetWidgetSelection()
+
+    onWObjChanged:
     {
-        visible: wObj ? false : true
-        anchors.centerIn: parent
-        label: qsTr("Select a widget first")
+        wPropsLoader.active = false
+        wPropsLoader.active = true
+        vcRightPanel.width = vcRightPanel.width - funcMgrLoader.width
+        funcMgrLoader.source = ""
+        funcMgrLoader.width = 0
     }
 
-    Rectangle
+    SplitView
     {
-        id: commonPropsBox
-        x: 3
-        width: parent.width - 6
-        height: isExpanded ? (cPropsHeader.height + cPropsGrid.height) : cPropsHeader.height
-        color: "transparent"
-        clip: true
-        visible: wObj ? true : false
+        anchors.fill: parent
+        Loader
+        {
+            id: funcMgrLoader
+            visible: width
+            width: 0
+            height: wPropsRoot.height
+            source: ""
 
-        property bool isExpanded: true
+            Rectangle
+            {
+                width: 2
+                height: parent.height
+                x: parent.width - 2
+                color: UISettings.bgLighter
+            }
+        }
 
         Rectangle
         {
-            id: cPropsHeader
-            width: parent.width
-            height: 38
-            color: headerMouseArea.containsMouse ? UISettings.highlight : UISettings.sectionHeader
+            Layout.fillWidth: true
+            height: wPropsRoot.height
+            color: "transparent"
 
             RobotoText
             {
-                label: qsTr("Basic properties")
-            }
-            Text
-            {
-                x: parent.width - 34
-                anchors.verticalCenter: parent.verticalCenter
-                font.family: "FontAwesome"
-                font.pointSize: 24
-                text: commonPropsBox.isExpanded ? FontAwesome.fa_minus_square : FontAwesome.fa_plus_square
-                color: "white"
+                visible: wObj ? false : true
+                anchors.centerIn: parent
+                label: qsTr("Select a widget first")
             }
 
-            MouseArea
+            Flickable
             {
-                id: headerMouseArea
-                anchors.fill: parent
-                hoverEnabled: true
+              id: propsFlickable
+              anchors.fill: parent
+              boundsBehavior: Flickable.StopAtBounds
+              contentHeight: propsContentsColumn.height
 
-                onClicked: commonPropsBox.isExpanded = !commonPropsBox.isExpanded
-            }
-        }
 
-        GridLayout
-        {
-            id: cPropsGrid
-            y: cPropsHeader.height
-            width: parent.width
-            columns: 2
-            columnSpacing: 5
-            rowSpacing: 4
+              Column
+              {
+                id: propsContentsColumn
+                width: parent.width - (wpBar.visible ? wpBar.width : 0)
+                spacing: 5
 
-            // row 1
-            RobotoText
-            {
-                fontSize: 14
-                label: qsTr("Label")
-            }
-            CustomTextEdit
-            {
-                inputText: wObj ? wObj.caption : ""
-                Layout.fillWidth: true
-                onTextChanged:
+                SectionBox
                 {
-                    if (wObj)
-                        wObj.caption = text
-                }
-            }
+                    width: parent.width
+                    visible: wObj ? true : false
+                    sectionLabel: qsTr("Basic properties")
 
-            // row 2
-            RobotoText
-            {
-                fontSize: 14
-                label: qsTr("Background color")
-            }
-            Rectangle
-            {
-                width: 80
-                height: 38
-                color: wObj ? wObj.backgroundColor : "black"
+                    sectionContents:
+                      GridLayout
+                      {
+                        id: cPropsGrid
+                        width: parent.width
+                        columns: 2
+                        columnSpacing: 5
+                        rowSpacing: 4
 
-                ColorTool
-                {
-                    id: bgColTool
-                    parent: wPropsRoot
-                    x: wPropsRoot.width
-                    y: 100
-                    visible: false
-
-                    onColorChanged:
-                    {
-                        if(wObj)
-                            wObj.backgroundColor = Qt.rgba(r, g, b, 1.0)
-                    }
-                }
-
-                MouseArea
-                {
-                    anchors.fill: parent
-                    onClicked: bgColTool.visible = !bgColTool.visible
-                }
-            }
-
-            // row 3
-            RobotoText
-            {
-                fontSize: 14
-                label: qsTr("Foreground color")
-            }
-            Rectangle
-            {
-                width: 80
-                height: 38
-                color: wObj ? wObj.foregroundColor : "black"
-
-                ColorTool
-                {
-                    id: fgColTool
-                    parent: wPropsRoot
-                    x: wPropsRoot.width
-                    y: 100
-                    visible: false
-
-                    onColorChanged:
-                    {
-                        if(wObj)
-                            wObj.foregroundColor = Qt.rgba(r, g, b, 1.0)
-                    }
-                }
-
-                MouseArea
-                {
-                    anchors.fill: parent
-                    onClicked: fgColTool.visible = !fgColTool.visible
-                }
-            }
-
-            // row 4
-            RobotoText
-            {
-                fontSize: 14
-                label: qsTr("Font")
-            }
-
-            Rectangle
-            {
-                Layout.fillWidth: true
-                height: 38
-                color: "transparent"
-
-                Text
-                {
-                    anchors.fill: parent
-                    font.family: wObj.font.family
-                    font.bold: wObj.font.bold
-                    font.italic: wObj.font.italic
-                    font.pointSize: 12
-                    text: wObj.font.family
-                    color: "white"
-                    verticalAlignment: Text.AlignVCenter
-                }
-
-                IconButton
-                {
-                    x: parent.width - UISettings.iconSizeDefault
-                    imgSource: "qrc:/font.svg"
-                    bgColor: "#aaa"
-                    hoverColor: "#888"
-
-                    onClicked: fontDialog.visible = true
-
-                    FontDialog
-                    {
-                        id: fontDialog
-                        title: qsTr("Please choose a font")
-                        font: wObj.font
-                        visible: false
-
-                        onAccepted:
+                        // row 1
+                        RobotoText
                         {
-                            console.log("Selected font: " + fontDialog.font)
-                            wObj.font = fontDialog.font
+                            fontSize: 14
+                            label: qsTr("Label")
                         }
-                    }
-                }
-            }
+                        CustomTextEdit
+                        {
+                            Layout.fillWidth: true
+                            color: UISettings.bgStronger
+                            inputText: wObj ? wObj.caption : ""
 
-        }
-    }
+                            onTextChanged:
+                            {
+                                if (wObj)
+                                    wObj.caption = text
+                            }
+                        }
+
+                        // row 2
+                        RobotoText
+                        {
+                            fontSize: 14
+                            label: qsTr("Background color")
+                        }
+                        Rectangle
+                        {
+                            width: 80
+                            height: 38
+                            color: wObj ? wObj.backgroundColor : "black"
+
+                            ColorTool
+                            {
+                                id: bgColTool
+                                parent: mainView
+                                x: vcRightPanel.x - width
+                                y: 100
+                                visible: false
+
+                                onColorChanged:
+                                {
+                                    if(wObj)
+                                        wObj.backgroundColor = Qt.rgba(r, g, b, 1.0)
+                                }
+                            }
+
+                            MouseArea
+                            {
+                                anchors.fill: parent
+                                onClicked: bgColTool.visible = !bgColTool.visible
+                            }
+                        }
+
+                        // row 3
+                        RobotoText
+                        {
+                            fontSize: 14
+                            label: qsTr("Foreground color")
+                        }
+                        Rectangle
+                        {
+                            width: 80
+                            height: 38
+                            color: wObj ? wObj.foregroundColor : "black"
+
+                            ColorTool
+                            {
+                                id: fgColTool
+                                parent: mainView
+                                x: vcRightPanel.x - width
+                                y: 100
+                                visible: false
+
+                                onColorChanged:
+                                {
+                                    if(wObj)
+                                        wObj.foregroundColor = Qt.rgba(r, g, b, 1.0)
+                                }
+                            }
+
+                            MouseArea
+                            {
+                                anchors.fill: parent
+                                onClicked: fgColTool.visible = !fgColTool.visible
+                            }
+                        }
+
+                        // row 4
+                        RobotoText
+                        {
+                            fontSize: 14
+                            label: qsTr("Font")
+                        }
+
+                        Rectangle
+                        {
+                            Layout.fillWidth: true
+                            height: 38
+                            color: "transparent"
+
+                            Text
+                            {
+                                anchors.fill: parent
+                                font.family: wObj ? wObj.font.family : ""
+                                font.bold: wObj ? wObj.font.bold : false
+                                font.italic: wObj ? wObj.font.italic : false
+                                font.pointSize: 12
+                                text: wObj ? wObj.font.family : ""
+                                color: "white"
+                                verticalAlignment: Text.AlignVCenter
+                            }
+
+                            IconButton
+                            {
+                                x: parent.width - UISettings.iconSizeDefault
+                                imgSource: "qrc:/font.svg"
+                                //bgColor: "#aaa"
+                                //hoverColor: "#888"
+
+                                onClicked: fontDialog.visible = true
+
+                                FontDialog
+                                {
+                                    id: fontDialog
+                                    title: qsTr("Please choose a font")
+                                    font: wObj ? wObj.font : ""
+                                    visible: false
+
+                                    onAccepted:
+                                    {
+                                        console.log("Selected font: " + fontDialog.font)
+                                        wObj.font = fontDialog.font
+                                    }
+                                }
+                            }
+                        }
+                     } // GridLayout
+                } // SectionBox
+
+                Loader
+                {
+                    id: wPropsLoader
+                    width: parent.width
+                    visible: wObj ? true : false
+                    source: wObj ? wObj.propertiesResource : ""
+
+                    onLoaded: item.widgetRef = wObj
+                }
+              } // end of properties column
+            } // end of flickable
+            ScrollBar { id: wpBar; flickable: propsFlickable }
+        } // end of Rectangle
+    } // end of SplitView
 }

@@ -17,8 +17,8 @@
   limitations under the License.
 */
 
-
-#include <QtXml>
+#include <QXmlStreamReader>
+#include <QXmlStreamWriter>
 
 #include "vcwidget.h"
 #include "doc.h"
@@ -35,12 +35,14 @@ VCWidget::VCWidget(Doc *doc, QObject *parent)
     , m_caption(QString())
     , m_backgroundColor(QColor("#333"))
     , m_hasCustomBackgroundColor(false)
-    , m_foregroundColor(QColor(Qt::black))
+    , m_foregroundColor(QColor(Qt::white))
     , m_hasCustomForegroundColor(false)
+    , m_hasCustomFont(false)
     , m_page(0)
     , m_intensity(1.0)
+    , m_isEditing(false)
 {
-    m_font = QFont("RobotoCondensed");
+    m_font = QFont("Roboto Condensed");
     m_font.setPointSize(10);
 }
 
@@ -97,7 +99,6 @@ QString VCWidget::typeToString(int type)
 {
     switch (type)
     {
-
         case ButtonWidget: return QString(tr("Button"));
         case SliderWidget: return QString(tr("Slider"));
         case FrameWidget: return QString(tr("Frame"));
@@ -108,6 +109,7 @@ QString VCWidget::typeToString(int type)
         case LabelWidget: return QString(tr("Label"));
         case AudioTriggersWidget: return QString(tr("Audio Triggers"));
         case AnimationWidget: return QString(tr("Animation"));
+        case ClockWidget: return QString(tr("Clock"));
         case UnknownWidget:
         default:
              return QString(tr("Unknown"));
@@ -308,7 +310,7 @@ bool VCWidget::hasCustomForegroundColor() const
 void VCWidget::resetForegroundColor()
 {
     m_hasCustomForegroundColor = false;
-    m_foregroundColor = Qt::black;
+    m_foregroundColor = Qt::white;
     setDocModified();
     emit foregroundColorChanged(m_foregroundColor);
 }
@@ -337,7 +339,7 @@ bool VCWidget::hasCustomFont() const
 
 void VCWidget::resetFont()
 {
-    m_font = QFont("RobotoCondensed");
+    m_font = QFont("Roboto Condensed");
     m_font.setPointSize(16);
     m_hasCustomFont = false;
     setDocModified();
@@ -383,113 +385,148 @@ qreal VCWidget::intensity()
     return m_intensity;
 }
 
+/*********************************************************************
+ * QML Properties Component
+ *********************************************************************/
+
+bool VCWidget::isEditing() const
+{
+    return m_isEditing;
+}
+
+void VCWidget::setIsEditing(bool edit)
+{
+    if (edit == m_isEditing)
+        return;
+
+    m_isEditing = edit;
+    emit isEditingChanged();
+}
+
+QString VCWidget::propertiesResource() const
+{
+    return QString();
+}
+
 /*****************************************************************************
  * Load & Save
  *****************************************************************************/
 
-bool VCWidget::loadXML(const QDomElement *)
+bool VCWidget::loadXML(QXmlStreamReader &root)
 {
+    Q_UNUSED(root)
     return false;
 }
 
-bool VCWidget::loadXMLCommon(const QDomElement *root)
+bool VCWidget::saveXML(QXmlStreamWriter *doc)
 {
-    Q_ASSERT(root != NULL);
+    Q_UNUSED(doc)
+    return false;
+}
+
+bool VCWidget::loadXMLCommon(QXmlStreamReader &root)
+{
+    if (root.device() == NULL || root.hasError())
+        return false;
+
+    QXmlStreamAttributes attrs = root.attributes();
 
     /* ID */
-    if (root->hasAttribute(KXMLQLCVCWidgetID))
-        setID(root->attribute(KXMLQLCVCWidgetID).toUInt());
+    if (attrs.hasAttribute(KXMLQLCVCWidgetID))
+        setID(attrs.value(KXMLQLCVCWidgetID).toUInt());
 
     /* Caption */
-    if (root->hasAttribute(KXMLQLCVCCaption))
-        setCaption(root->attribute(KXMLQLCVCCaption));
+    if (attrs.hasAttribute(KXMLQLCVCCaption))
+        setCaption(attrs.value(KXMLQLCVCCaption).toString());
 
     /* Page */
-    if (root->hasAttribute(KXMLQLCVCWidgetPage))
-        setPage(root->attribute(KXMLQLCVCWidgetPage).toInt());
+    if (attrs.hasAttribute(KXMLQLCVCWidgetPage))
+        setPage(attrs.value(KXMLQLCVCWidgetPage).toInt());
 
     return true;
 }
 
-bool VCWidget::loadXMLAppearance(const QDomElement* root)
+bool VCWidget::loadXMLAppearance(QXmlStreamReader &root)
 {
-    QDomNode node;
-    QDomElement tag;
+    if (root.device() == NULL || root.hasError())
+        return false;
 
-    Q_ASSERT(root != NULL);
-
-    if (root->tagName() != KXMLQLCVCWidgetAppearance)
+    if (root.name() != KXMLQLCVCWidgetAppearance)
     {
         qWarning() << Q_FUNC_INFO << "Appearance node not found!";
         return false;
     }
 
     /* Children */
-    node = root->firstChild();
-    while (node.isNull() == false)
+    while (root.readNextStartElement())
     {
-        tag = node.toElement();
-        if (tag.tagName() == KXMLQLCVCWidgetForegroundColor)
+        if (root.name() == KXMLQLCVCWidgetForegroundColor)
         {
-            if (tag.text() != KXMLQLCVCWidgetColorDefault)
-                setForegroundColor(QColor(tag.text().toUInt()));
+            QString str = root.readElementText();
+            if (str != KXMLQLCVCWidgetColorDefault)
+                setForegroundColor(QColor(str.toUInt()));
             else if (hasCustomForegroundColor() == true)
                 resetForegroundColor();
         }
-        else if (tag.tagName() == KXMLQLCVCWidgetBackgroundColor)
+        else if (root.name() == KXMLQLCVCWidgetBackgroundColor)
         {
-            if (tag.text() != KXMLQLCVCWidgetColorDefault)
-                setBackgroundColor(QColor(tag.text().toUInt()));
+            QString str = root.readElementText();
+            if (str != KXMLQLCVCWidgetColorDefault)
+                setBackgroundColor(QColor(str.toUInt()));
         }
 /*
-        else if (tag.tagName() == KXMLQLCVCWidgetBackgroundImage)
+        else if (root.name() == KXMLQLCVCWidgetBackgroundImage)
         {
-            if (tag.text() != KXMLQLCVCWidgetBackgroundImageNone)
-                setBackgroundImage(m_doc->denormalizeComponentPath(tag.text()));
+            QString str = root.readElementText();
+            if (str != KXMLQLCVCWidgetBackgroundImageNone)
+                setBackgroundImage(m_doc->denormalizeComponentPath(str));
         }
 */
-        else if (tag.tagName() == KXMLQLCVCWidgetFont)
+        else if (root.name() == KXMLQLCVCWidgetFont)
         {
-            if (tag.text() != KXMLQLCVCWidgetFontDefault)
+            QString str = root.readElementText();
+            if (str != KXMLQLCVCWidgetFontDefault)
             {
                 QFont font;
-                font.fromString(tag.text());
+                font.fromString(str);
                 setFont(font);
             }
         }
-        else if (tag.tagName() == KXMLQLCVCFrameStyle)
+        else if (root.name() == KXMLQLCVCFrameStyle)
         {
             /** LEGACY: no more supported/needed */
+            root.skipCurrentElement();
         }
         else
         {
-            qWarning() << Q_FUNC_INFO << "Unknown appearance tag:" << tag.tagName();
+            qWarning() << Q_FUNC_INFO << "Unknown appearance tag:" << root.name().toString();
+            root.skipCurrentElement();
         }
-
-        node = node.nextSibling();
     }
 
     return true;
 }
 
-bool VCWidget::loadXMLWindowState(const QDomElement* tag, int* x, int* y,
+bool VCWidget::loadXMLWindowState(QXmlStreamReader &root, int* x, int* y,
                                   int* w, int* h, bool* visible)
 {
-    if (tag == NULL || x == NULL || y == NULL || w == NULL || h == NULL ||
+    if (root.device() == NULL || x == NULL || y == NULL || w == NULL || h == NULL ||
             visible == NULL)
         return false;
 
-    if (tag->tagName() == KXMLQLCWindowState)
+    if (root.name() == KXMLQLCWindowState)
     {
-        *x = tag->attribute(KXMLQLCWindowStateX).toInt();
-        *y = tag->attribute(KXMLQLCWindowStateY).toInt();
-        *w = tag->attribute(KXMLQLCWindowStateWidth).toInt();
-        *h = tag->attribute(KXMLQLCWindowStateHeight).toInt();
+        QXmlStreamAttributes attrs = root.attributes();
+        *x = attrs.value(KXMLQLCWindowStateX).toInt();
+        *y = attrs.value(KXMLQLCWindowStateY).toInt();
+        *w = attrs.value(KXMLQLCWindowStateWidth).toInt();
+        *h = attrs.value(KXMLQLCWindowStateHeight).toInt();
 
-        if (tag->attribute(KXMLQLCWindowStateVisible) == KXMLQLCTrue)
+        if (attrs.value(KXMLQLCWindowStateVisible).toString() == KXMLQLCTrue)
             *visible = true;
         else
             *visible = false;
+        root.skipCurrentElement();
 
         return true;
     }
@@ -499,3 +536,106 @@ bool VCWidget::loadXMLWindowState(const QDomElement* tag, int* x, int* y,
         return false;
     }
 }
+
+bool VCWidget::saveXMLCommon(QXmlStreamWriter *doc)
+{
+    Q_ASSERT(doc != NULL);
+
+    /* Caption */
+    doc->writeAttribute(KXMLQLCVCCaption, caption());
+
+    /* ID */
+    if (id() != VCWidget::invalidId())
+        doc->writeAttribute(KXMLQLCVCWidgetID, QString::number(id()));
+
+    /* Page */
+    if (page() != 0)
+        doc->writeAttribute(KXMLQLCVCWidgetPage, QString::number(page()));
+
+    return true;
+}
+
+bool VCWidget::saveXMLAppearance(QXmlStreamWriter *doc)
+{
+    Q_ASSERT(doc != NULL);
+
+    QString str;
+
+    if (hasCustomForegroundColor() == false &&
+        hasCustomBackgroundColor() == false &&
+        //backgroundImage().isEmpty() &&
+        hasCustomFont() == false)
+            return true;
+
+    /* VC widget appearance entry */
+    doc->writeStartElement(KXMLQLCVCWidgetAppearance);
+
+    /* Foreground color */
+    if (hasCustomForegroundColor() == true)
+    {
+        str.setNum(foregroundColor().rgb());
+    //else
+    //    str = KXMLQLCVCWidgetColorDefault;
+        doc->writeTextElement(KXMLQLCVCWidgetForegroundColor, str);
+    }
+
+    /* Background color */
+    if (hasCustomBackgroundColor() == true)
+    {
+        str.setNum(backgroundColor().rgb());
+    //else
+    //    str = KXMLQLCVCWidgetColorDefault;
+        doc->writeTextElement(KXMLQLCVCWidgetBackgroundColor, str);
+    }
+
+#if 0 // TODO
+    /* Background image */
+    if (backgroundImage().isEmpty() == false)
+    {
+        str = m_doc->normalizeComponentPath(m_backgroundImage);
+    //else
+    //    str = KXMLQLCVCWidgetBackgroundImageNone;
+        doc->writeTextElement(KXMLQLCVCWidgetBackgroundImage, str);
+    }
+#endif
+
+    /* Font */
+    if (hasCustomFont() == true)
+    {
+        str = font().toString();
+    //else
+    //    str = KXMLQLCVCWidgetFontDefault;
+        doc->writeTextElement(KXMLQLCVCWidgetFont, str);
+    }
+
+    /* End the <Appearance> tag */
+    doc->writeEndElement();
+
+    return true;
+}
+
+bool VCWidget::saveXMLWindowState(QXmlStreamWriter *doc)
+{
+    Q_ASSERT(doc != NULL);
+
+    QRect r = geometry();
+
+    /* Window state tag */
+    doc->writeStartElement(KXMLQLCWindowState);
+
+    /* Visible status */
+    if (isVisible() == true)
+        doc->writeAttribute(KXMLQLCWindowStateVisible, KXMLQLCTrue);
+    else
+        doc->writeAttribute(KXMLQLCWindowStateVisible, KXMLQLCFalse);
+
+    doc->writeAttribute(KXMLQLCWindowStateX, QString::number(r.x()));
+    doc->writeAttribute(KXMLQLCWindowStateY, QString::number(r.y()));
+    doc->writeAttribute(KXMLQLCWindowStateWidth, QString::number(r.width()));
+    doc->writeAttribute(KXMLQLCWindowStateHeight, QString::number(r.height()));
+
+    doc->writeEndElement();
+
+    return true;
+}
+

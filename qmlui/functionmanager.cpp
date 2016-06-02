@@ -22,6 +22,8 @@
 #include <QDebug>
 
 #include "functionmanager.h"
+#include "rgbmatrixeditor.h"
+#include "chasereditor.h"
 #include "sceneeditor.h"
 #include "collection.h"
 #include "treemodel.h"
@@ -41,6 +43,7 @@ FunctionManager::FunctionManager(QQuickView *view, Doc *doc, QObject *parent)
     : QObject(parent)
     , m_view(view)
     , m_doc(doc)
+    , m_viewPosition(0)
     , m_previewEnabled(false)
 {
     m_filter = 0;
@@ -48,11 +51,11 @@ FunctionManager::FunctionManager(QQuickView *view, Doc *doc, QObject *parent)
     m_collectionCount = m_rgbMatrixCount = m_scriptCount = 0;
     m_showCount = m_audioCount = m_videoCount = 0;
 
-    m_sceneEditor = new SceneEditor(m_view, m_doc, this);
+    m_currentEditor = NULL;
 
     qmlRegisterType<Collection>("com.qlcplus.classes", 1, 0, "Collection");
-
-    m_view->rootContext()->setContextProperty("sceneEditor", m_sceneEditor);
+    qmlRegisterType<Chaser>("com.qlcplus.classes", 1, 0, "Chaser");
+    qmlRegisterType<RGBMatrix>("com.qlcplus.classes", 1, 0, "RGBMatrix");
 
     m_functionTree = new TreeModel(this);
     QQmlEngine::setObjectOwnership(m_functionTree, QQmlEngine::CppOwnership);
@@ -75,8 +78,27 @@ FunctionManager::FunctionManager(QQuickView *view, Doc *doc, QObject *parent)
 
 QVariant FunctionManager::functionsList()
 {
-    slotDocLoaded();
     return QVariant::fromValue(m_functionTree);
+}
+
+QVariantList FunctionManager::selectedFunctionsID()
+{
+    return m_selectedIDList;
+}
+
+QStringList FunctionManager::selectedFunctionsName()
+{
+    QStringList names;
+
+    foreach(QVariant fID, m_selectedIDList)
+    {
+        Function *f = m_doc->function(fID.toInt());
+        if (f == NULL)
+            continue;
+        names.append(f->name());
+    }
+
+    return names;
 }
 
 void FunctionManager::setFunctionFilter(quint32 filter, bool enable)
@@ -85,42 +107,15 @@ void FunctionManager::setFunctionFilter(quint32 filter, bool enable)
         m_filter |= filter;
     else
         m_filter &= ~filter;
-    slotDocLoaded();
+
+    updateFunctionsTree();
+    emit selectionCountChanged(m_selectedIDList.count());
+    emit functionsListChanged();
 }
 
-void FunctionManager::selectFunction(quint32 id, QQuickItem *item, bool multiSelection)
+int FunctionManager::functionsFilter() const
 {
-    if (multiSelection == false)
-    {
-        foreach(selectedFunction sf, m_selectedFunctions)
-        {
-            if (m_previewEnabled && sf.m_fID == m_sceneEditor->sceneID())
-                m_sceneEditor->setPreview(false);
-            sf.m_item->setProperty("isSelected", false);
-            Function *f = m_doc->function(sf.m_fID);
-            if (f != NULL && f->isRunning())
-                f->stop();
-        }
-
-        m_selectedFunctions.clear();
-    }
-
-    selectedFunction sf;
-    sf.m_fID = id;
-    sf.m_item = item;
-    item->setProperty("isSelected", true);
-    m_selectedFunctions.append(sf);
-
-    if (m_previewEnabled == true)
-    {
-        Function *f = m_doc->function(sf.m_fID);
-        if (f != NULL)
-            f->start(m_doc->masterTimer());
-    }
-
-    QQuickItem *previewBtn = qobject_cast<QQuickItem*>(m_view->rootObject()->findChild<QObject *>("previewButton"));
-    if (previewBtn != NULL)
-        previewBtn->setProperty("visible", true);
+    return (int)m_filter;
 }
 
 quint32 FunctionManager::createFunction(int type)
@@ -134,54 +129,72 @@ quint32 FunctionManager::createFunction(int type)
         {
             f = new Scene(m_doc);
             name = tr("New Scene");
+            m_sceneCount++;
+            emit sceneCountChanged();
         }
         break;
         case Function::Chaser:
         {
             f = new Chaser(m_doc);
             name = tr("New Chaser");
+            m_chaserCount++;
+            emit chaserCountChanged();
         }
         break;
         case Function::EFX:
         {
             f = new EFX(m_doc);
             name = tr("New EFX");
+            m_efxCount++;
+            emit efxCountChanged();
         }
         break;
         case Function::Collection:
         {
             f = new Collection(m_doc);
             name = tr("New Collection");
+            m_collectionCount++;
+            emit collectionCountChanged();
         }
         break;
         case Function::RGBMatrix:
         {
             f = new RGBMatrix(m_doc);
             name = tr("New RGB Matrix");
+            m_rgbMatrixCount++;
+            emit rgbMatrixCountChanged();
         }
         break;
         case Function::Script:
         {
             f = new Script(m_doc);
             name = tr("New Script");
+            m_scriptCount++;
+            emit scriptCountChanged();
         }
         break;
         case Function::Show:
         {
             f = new Show(m_doc);
             name = tr("New Show");
+            m_showCount++;
+            emit showCountChanged();
         }
         break;
         case Function::Audio:
         {
             f = new Audio(m_doc);
             name = tr("New Audio");
+            m_audioCount++;
+            emit audioCountChanged();
         }
         break;
         case Function::Video:
         {
             f = new Video(m_doc);
             name = tr("New Video");
+            m_videoCount++;
+            emit videoCountChanged();
         }
         break;
         default:
@@ -194,6 +207,12 @@ quint32 FunctionManager::createFunction(int type)
     {
         f->setName(QString("%1 %2").arg(name).arg(f->id()));
         QQmlEngine::setObjectOwnership(f, QQmlEngine::CppOwnership);
+
+        QVariantList params;
+        params.append(QVariant::fromValue(f));
+        m_functionTree->addItem(f->name(), params, f->path(true));
+        emit functionsListChanged();
+
         return f->id();
     }
     else
@@ -209,41 +228,76 @@ Function *FunctionManager::getFunction(quint32 id)
 
 void FunctionManager::clearTree()
 {
-    m_selectedFunctions.clear();
+    setPreview(false);
+    m_selectedIDList.clear();
     m_functionTree->clear();
 }
 
 void FunctionManager::setPreview(bool enable)
 {
-    foreach(selectedFunction sf, m_selectedFunctions)
+    if (m_currentEditor != NULL)
     {
-        Function *f = m_doc->function(sf.m_fID);
-        if (f != NULL)
+        m_currentEditor->setPreview(enable);
+    }
+    else
+    {
+        foreach(QVariant fID, m_selectedIDList)
         {
-            if (enable == false)
-                f->stop();
-            else
+            Function *f = m_doc->function(fID.toUInt());
+            if (f != NULL)
             {
-                f->start(m_doc->masterTimer());
+                if (enable == false)
+                    f->stop(FunctionParent::master());
+                else
+                {
+                    f->start(m_doc->masterTimer(), FunctionParent::master());
+                }
             }
         }
-    }
-
-    if (m_selectedFunctions.isEmpty())
-    {
-        if (m_sceneEditor->sceneID() != Function::invalidId())
-            m_sceneEditor->setPreview(enable);
     }
 
     m_previewEnabled = enable;
 }
 
+void FunctionManager::selectFunctionID(quint32 fID, bool multiSelection)
+{
+    if (multiSelection == false)
+    {
+        foreach(QVariant fID, m_selectedIDList)
+        {
+            if (m_previewEnabled == true)
+            {
+                Function *f = m_doc->function(fID.toUInt());
+                if (f != NULL)
+                    f->stop(FunctionParent::master());
+            }
+        }
+        m_selectedIDList.clear();
+    }
+
+    if (m_previewEnabled == true)
+    {
+        Function *f = m_doc->function(fID);
+        if (f != NULL)
+            f->start(m_doc->masterTimer(), FunctionParent::master());
+    }
+    m_selectedIDList.append(QVariant(fID));
+
+    emit selectionCountChanged(m_selectedIDList.count());
+}
+
 void FunctionManager::setEditorFunction(quint32 fID)
 {
+    // reset all the editor functions
+    if (m_currentEditor != NULL)
+    {
+        //m_currentEditor->setFunctionID(Function::invalidId());
+        delete m_currentEditor;
+        m_currentEditor = NULL;
+    }
+
     if ((int)fID == -1)
     {
-        // reset all the editor functions
-        m_sceneEditor->setSceneID(Function::invalidId());
         emit functionEditingChanged(false);
         return;
     }
@@ -256,19 +310,75 @@ void FunctionManager::setEditorFunction(quint32 fID)
     {
         case Function::Scene:
         {
-            m_sceneEditor->setSceneID(fID);
-            m_sceneEditor->setPreview(m_previewEnabled);
+            m_currentEditor = new SceneEditor(m_view, m_doc, this);
         }
         break;
+        case Function::Chaser:
+        {
+            m_currentEditor = new ChaserEditor(m_view, m_doc, this);
+        }
+        break;
+        case Function::RGBMatrix:
+        {
+            m_currentEditor = new RGBMatrixEditor(m_view, m_doc, this);
+        }
+        break;
+        case Function::Show: break; // a Show is edited by the Show Manager
         default:
         {
-            if (m_previewEnabled)
-                f->start(m_doc->masterTimer());
+            qDebug() << "Requested function type" << f->type() << "doesn't have a dedicated Function editor";
         }
         break;
     }
 
+    if (m_currentEditor != NULL)
+    {
+        m_currentEditor->setFunctionID(fID);
+        m_currentEditor->setPreview(m_previewEnabled);
+    }
+
     emit functionEditingChanged(true);
+}
+
+void FunctionManager::deleteFunctions(QVariantList IDList)
+{
+    foreach(QVariant fID, IDList)
+    {
+        Function *f = m_doc->function(fID.toInt());
+        if (f == NULL)
+            continue;
+
+        if (f->isRunning())
+            f->stop(FunctionParent::master());
+
+        if (m_selectedIDList.contains(fID))
+            m_selectedIDList.removeAll(fID);
+
+        m_doc->deleteFunction(f->id());
+    }
+
+    updateFunctionsTree();
+    emit functionsListChanged();
+    emit selectionCountChanged(m_selectedIDList.count());
+}
+
+int FunctionManager::selectionCount() const
+{
+    return m_selectedIDList.count();
+}
+
+void FunctionManager::setViewPosition(int viewPosition)
+{
+    if (m_viewPosition == viewPosition)
+        return;
+
+    m_viewPosition = viewPosition;
+    emit viewPositionChanged(viewPosition);
+}
+
+int FunctionManager::viewPosition() const
+{
+    return m_viewPosition;
 }
 
 /*********************************************************************
@@ -326,17 +436,20 @@ void FunctionManager::dumpOnNewScene(QList<quint32> selectedFixtures)
 
 void FunctionManager::setChannelValue(quint32 fxID, quint32 channel, uchar value)
 {
-    if (m_sceneEditor->sceneID() != Function::invalidId())
-        m_sceneEditor->setChannelValue(fxID, channel, value);
+    if (m_currentEditor != NULL && m_currentEditor->functionType() == Function::Scene)
+    {
+        SceneEditor *se = qobject_cast<SceneEditor *>(m_currentEditor);
+        se->setChannelValue(fxID, channel, value);
+    }
 }
 
-void FunctionManager::slotDocLoaded()
+void FunctionManager::updateFunctionsTree()
 {
     m_sceneCount = m_chaserCount = m_efxCount = 0;
     m_collectionCount = m_rgbMatrixCount = m_scriptCount = 0;
     m_showCount = m_audioCount = m_videoCount = 0;
 
-    m_selectedFunctions.clear();
+    m_selectedIDList.clear();
     m_functionTree->clear();
     foreach(Function *func, m_doc->functions())
     {
@@ -373,6 +486,12 @@ void FunctionManager::slotDocLoaded()
     emit showCountChanged();
     emit audioCountChanged();
     emit videoCountChanged();
+}
+
+void FunctionManager::slotDocLoaded()
+{
+    setPreview(false);
+    updateFunctionsTree();
 
     emit functionsListChanged();
 }

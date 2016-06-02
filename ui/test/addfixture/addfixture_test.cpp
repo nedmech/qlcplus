@@ -77,6 +77,7 @@ void AddFixture_Test::findAddress()
     Fixture* f1 = new Fixture(m_doc);
     f1->setChannels(15);
     f1->setAddress(10);
+    f1->setID(1);
     fixtures << f1;
 
     /* There's a fixture taking 15 channels (10-24) */
@@ -86,6 +87,7 @@ void AddFixture_Test::findAddress()
     Fixture* f2 = new Fixture(m_doc);
     f2->setChannels(15);
     f2->setAddress(10);
+    f2->setID(2);
     fixtures << f2;
 
     /* Now there are two fixtures at the same address, with all channels
@@ -102,6 +104,7 @@ void AddFixture_Test::findAddress()
     Fixture* f3 = new Fixture(m_doc);
     f3->setChannels(5);
     f3->setAddress(30);
+    f3->setID(3);
     fixtures << f3;
 
     /* Next free slot for max 5 channels is between 25 and 30 */
@@ -112,6 +115,10 @@ void AddFixture_Test::findAddress()
 
     /* Next free slot is found only from the next universe */
     QVERIFY(AddFixture::findAddress(500, fixtures, 4) == 512);
+
+    /* ignore fixture f2 (@0) */
+    QVERIFY(AddFixture::findAddress(0, 10, fixtures) > 0);
+    QVERIFY(AddFixture::findAddress(0, 10, fixtures, f2->id()) == 0);
 
     while (fixtures.isEmpty() == false)
         delete fixtures.takeFirst();
@@ -307,7 +314,7 @@ void AddFixture_Test::initialScanner()
     Q_ASSERT(def->modes().size() > 1);
 
     fxi->setFixtureDefinition(def, mode);
-    fxi->setUniverse(2);
+    fxi->setUniverse(3);
     fxi->setAddress(484);
     m_doc->addFixture(fxi);
 
@@ -317,7 +324,7 @@ void AddFixture_Test::initialScanner()
     QVERIFY(af.mode() == mode);
     QVERIFY(af.name() == QString("My scanner"));
     QVERIFY(af.address() == 484);
-    QVERIFY(af.universe() == 2);
+    QVERIFY(af.universe() == 3);
     QVERIFY(af.amount() == 1);
     QVERIFY(af.gap() == 0);
     QVERIFY(af.channels() == fxi->channels());
@@ -371,7 +378,7 @@ void AddFixture_Test::initialScanner()
     QCOMPARE(af.m_modeCombo->itemText(0), mode->name());
 
     QVERIFY(af.m_universeCombo->isEnabled() == true);
-    QCOMPARE(af.m_universeCombo->currentIndex(), 2);
+    QCOMPARE(af.m_universeCombo->currentIndex(), 3);
     QCOMPARE(af.m_universeCombo->count(), 4);
 
     QVERIFY(af.m_addressSpin->isEnabled() == true);

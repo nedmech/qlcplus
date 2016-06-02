@@ -35,9 +35,13 @@ class Fixture;
 class FixtureManager : public QObject
 {
     Q_OBJECT
+
     Q_PROPERTY(int fixturesCount READ fixturesCount NOTIFY fixturesCountChanged)
     Q_PROPERTY(QQmlListProperty<Fixture> fixtures READ fixtures)
-    Q_PROPERTY(QVariant groupsModel READ groupsModel NOTIFY groupsModelChanged)
+    Q_PROPERTY(QVariantList fixturesMap READ fixturesMap NOTIFY fixturesMapChanged)
+    Q_PROPERTY(QVariant groupsTreeModel READ groupsTreeModel NOTIFY groupsTreeModelChanged)
+    Q_PROPERTY(QVariant groupsListModel READ groupsListModel NOTIFY groupsListModelChanged)
+    Q_PROPERTY(quint32 universeFilter READ universeFilter WRITE setUniverseFilter NOTIFY universeFilterChanged)
 
     Q_PROPERTY(QVariantList goboChannels READ goboChannels NOTIFY goboChannelsChanged)
     Q_PROPERTY(QVariantList colorWheelChannels READ colorWheelChannels NOTIFY colorWheelChannelsChanged)
@@ -47,9 +51,15 @@ public:
 
     Q_INVOKABLE quint32 invalidFixture();
     Q_INVOKABLE quint32 fixtureForAddress(quint32 index);
+    /** Returns a list of the universe indices occupied by a Fixture
+        at the requested $address */
+    Q_INVOKABLE QVariantList fixtureSelection(quint32 address);
+
     Q_INVOKABLE bool addFixture(QString manuf, QString model, QString mode, QString name,
                                 int uniIdx, int address, int channels, int quantity, quint32 gap,
                                 qreal xPos, qreal yPos);
+    Q_INVOKABLE bool moveFixture(quint32 fixtureID, quint32 newAddress);
+
     Q_INVOKABLE QString channelIcon(quint32 fxID, quint32 chIdx);
 
     Q_INVOKABLE void setChannelValue(quint32 fixtureID, quint32 channelIndex, quint8 value);
@@ -74,8 +84,11 @@ public:
     /** Returns a QML-readable list of references to Fixture classes */
     QQmlListProperty<Fixture> fixtures();
 
-    /** Returns the data model to display a tree of Groups/Fixtures */
-    QVariant groupsModel();
+    /** Returns the data model to display a tree of FixtureGroups/Fixtures */
+    QVariant groupsTreeModel();
+
+    /** Returns the data model to display a list of FixtureGroups with icons */
+    QVariant groupsListModel();
 
     /** Add a list of fixture IDs to a new fixture group */
     void addFixturesToNewGroup(QList<quint32>fxList);
@@ -99,6 +112,12 @@ public:
      *  the channel cached at the given index */
     Q_INVOKABLE QVariantList presetCapabilities(int index);
 
+    /** Returns data for representation in a GridEditor QML component */
+    QVariantList fixturesMap();
+
+    quint32 universeFilter() const;
+    void setUniverseFilter(quint32 universeFilter);
+
 public slots:
     /** Slot called whenever a new workspace has been loaded */
     void slotDocLoaded();
@@ -107,8 +126,11 @@ signals:
     /** Notify the listeners that the number of Fixtures has changed */
     void fixturesCountChanged();
 
-    /** Notify the listeners that the Group tree model has changed */
-    void groupsModelChanged();
+    /** Notify the listeners that the FixtureGroup tree model has changed */
+    void groupsTreeModelChanged();
+
+    /** Notify the listeners that the FixtureGroup list model has changed */
+    void groupsListModelChanged();
 
     void newFixtureCreated(quint32 fxID, qreal x, qreal y);
 
@@ -137,6 +159,12 @@ signals:
     /** Notify the listeners that the list of fixtures with color wheel channels has changed */
     void colorWheelChannelsChanged();
 
+    /** Notify the listeners that the fixture map has changed */
+    void fixturesMapChanged();
+
+    /** Notify the listeners that the universe filter has changed */
+    void universeFilterChanged(quint32 universeFilter);
+
 private:
     /** Generic method that returns the names of the cached channels for
      *  the required $group */
@@ -157,6 +185,10 @@ private:
     QMap<const QLCChannel *, quint32>m_presetsCache;
     /** Data model used by the QML UI to represent groups and fixtures */
     TreeModel *m_fixtureTree;
+    /** An array-like map of the current fixtures, filtered by m_universeFilter */
+    QVariantList m_fixturesMap;
+    /** A filter for m_fixturesMap to restrict data to a specific universe */
+    quint32 m_universeFilter;
 
     /** Variables to hold the maximum Pan/Tilt degrees discovered
      *  when enabling the position capability for the selected Fixtures */

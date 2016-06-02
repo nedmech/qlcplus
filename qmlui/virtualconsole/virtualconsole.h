@@ -26,7 +26,8 @@
 
 #include "previewcontext.h"
 
-class QDomElement;
+class QXmlStreamReader;
+class QXmlStreamWriter;
 class VCWidget;
 class VCFrame;
 class Doc;
@@ -37,6 +38,7 @@ class VirtualConsole : public PreviewContext
 {
     Q_OBJECT
 
+    Q_PROPERTY(int selectedPage READ selectedPage WRITE setSelectedPage NOTIFY selectedPageChanged)
     Q_PROPERTY(bool editMode READ editMode WRITE setEditMode NOTIFY editModeChanged)
     Q_PROPERTY(VCWidget *selectedWidget READ selectedWidget NOTIFY selectedWidgetChanged)
 
@@ -46,6 +48,8 @@ public:
     Q_INVOKABLE void renderPage(QQuickItem *parent, QQuickItem *contentItem, int page);
 
     Q_INVOKABLE void setWidgetSelection(quint32 wID, QQuickItem *item, bool enable);
+
+    Q_INVOKABLE void resetWidgetSelection();
 
     /*********************************************************************
      * Contents
@@ -65,6 +69,10 @@ public:
 
     //QList<VCWidget *> getChildren(VCWidget *obj);
 
+    int selectedPage() const;
+
+    void setSelectedPage(int selectedPage);
+
     /** Get resize mode flag */
     bool editMode() const;
 
@@ -77,6 +85,8 @@ signals:
     void editModeChanged(bool editMode);
 
     void selectedWidgetChanged(VCWidget * selectedWidget);
+
+    void selectedPageChanged(int selectedPage);
 
 protected:
     /** Create a new widget ID */
@@ -93,6 +103,8 @@ protected:
     quint32 m_latestWidgetId;
 
     bool m_resizeMode;
+
+    int m_selectedPage;
 
     VCWidget *m_selectedWidget;
 
@@ -121,10 +133,13 @@ protected:
      *********************************************************************/
 public:
     /** Load properties and contents from an XML tree */
-    bool loadXML(const QDomElement& root);
+    bool loadXML(QXmlStreamReader &root);
 
     /** Load the Virtual Console global properties XML tree */
-    bool loadPropertiesXML(const QDomElement& root);
+    bool loadPropertiesXML(QXmlStreamReader &root);
+
+    /** Save properties and contents to an XML document */
+    bool saveXML(QXmlStreamWriter *doc);
 
     /** Do post-load cleanup & checks */
     void postLoad();

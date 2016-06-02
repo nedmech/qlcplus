@@ -17,7 +17,8 @@
   limitations under the License.
 */
 
-#include <QtXml>
+#include <QXmlStreamReader>
+#include <QXmlStreamWriter>
 
 #include "qlcmacros.h"
 #include "vcbutton.h"
@@ -25,7 +26,7 @@
 
 VCButton::VCButton(Doc *doc, QObject *parent)
     : VCWidget(doc, parent)
-    , m_function(Function::invalidId())
+    , m_functionID(Function::invalidId())
     , m_isOn(false)
     , m_actionType(Toggle)
 {
@@ -64,15 +65,23 @@ void VCButton::render(QQuickView *view, QQuickItem *parent)
     item->setProperty("buttonObj", QVariant::fromValue(this));
 }
 
+QString VCButton::propertiesResource() const
+{
+    return QString("qrc:/VCButtonProperties.qml");
+}
+
 /*********************************************************************
  * Function attachment
  *********************************************************************/
 
-void VCButton::setFunction(quint32 fid)
+void VCButton::setFunctionID(quint32 fid)
 {
     bool running = false;
 
-    Function* current = m_doc->function(m_function);
+    if (m_functionID == fid)
+        return;
+
+    Function* current = m_doc->function(m_functionID);
     if (current != NULL)
     {
         /* Get rid of old function connections */
@@ -86,7 +95,7 @@ void VCButton::setFunction(quint32 fid)
         if(current->isRunning())
         {
             running = true;
-            current->stop();
+            current->stop(functionParent());
         }
     }
 
@@ -101,21 +110,25 @@ void VCButton::setFunction(quint32 fid)
         connect(function, SIGNAL(flashing(quint32,bool)),
                 this, SLOT(slotFunctionFlashing(quint32,bool)));
 
-        m_function = fid;
+        m_functionID = fid;
+        if (caption().isEmpty())
+            setCaption(function->name());
         if(running)
-            function->start(m_doc->masterTimer());
+            function->start(m_doc->masterTimer(), functionParent());
+        emit functionIDChanged(fid);
     }
     else
     {
         /* No function attachment */
-        m_function = Function::invalidId();
+        m_functionID = Function::invalidId();
+        emit functionIDChanged(-1);
     }
     setDocModified();
 }
 
-quint32 VCButton::function() const
+quint32 VCButton::functionID() const
 {
-    return m_function;
+    return m_functionID;
 }
 
 void VCButton::requestStateChange(bool pressed)
@@ -124,7 +137,7 @@ void VCButton::requestStateChange(bool pressed)
     {
         case Toggle:
         {
-            Function *f = m_doc->function(m_function);
+            Function *f = m_doc->function(m_functionID);
             if (f == NULL)
                 return;
 
@@ -132,20 +145,20 @@ void VCButton::requestStateChange(bool pressed)
             {
                 static const QMetaMethod funcSignal = QMetaMethod::fromSignal(&VCButton::functionStarting);
                 if (isSignalConnected(funcSignal))
-                    emit functionStarting(this, m_function);
+                    emit functionStarting(this, m_functionID);
                 else
-                    notifyFunctionStarting(this, m_function, 1.0);
+                    notifyFunctionStarting(this, m_functionID, 1.0);
             }
             else if (m_isOn == true && pressed == false)
             {
                 if (f->isRunning())
-                    f->stop();
+                    f->stop(functionParent());
             }
         }
         break;
         case Flash:
         {
-            Function *f = m_doc->function(m_function);
+            Function *f = m_doc->function(m_functionID);
             if (f != NULL)
             {
                 if (m_isOn == false && pressed == true)
@@ -171,17 +184,17 @@ void VCButton::notifyFunctionStarting(VCWidget *widget, quint32 fid, qreal fInte
     Q_UNUSED(widget)
     Q_UNUSED(fIntensity)
 
-    if (m_function == Function::invalidId() || actionType() != VCButton::Toggle)
+    if (m_functionID == Function::invalidId() || actionType() != VCButton::Toggle)
         return;
 
-    Function *f = m_doc->function(m_function);
+    Function *f = m_doc->function(m_functionID);
     if (f == NULL)
         return;
 
-    if (m_function != fid)
+    if (m_functionID != fid)
     {
         if (f->isRunning())
-            f->stop();
+            f->stop(functionParent());
     }
     else
     {
@@ -189,19 +202,19 @@ void VCButton::notifyFunctionStarting(VCWidget *widget, quint32 fid, qreal fInte
             f->adjustAttribute(startupIntensity() * intensity(), Function::Intensity);
         else
             f->adjustAttribute(intensity(), Function::Intensity);
-        f->start(m_doc->masterTimer());
+        f->start(m_doc->masterTimer(), functionParent());
     }
 }
 
 void VCButton::slotFunctionRunning(quint32 fid)
 {
-    if (fid == m_function && actionType() == Toggle)
+    if (fid == m_functionID && actionType() == Toggle)
         setOn(true);
 }
 
 void VCButton::slotFunctionStopped(quint32 fid)
 {
-    if (fid == m_function && actionType() == Toggle)
+    if (fid == m_functionID && actionType() == Toggle)
     {
         setOn(false);
         //blink(250);
@@ -214,17 +227,22 @@ void VCButton::slotFunctionFlashing(quint32 fid, bool state)
     if (actionType() != Toggle && actionType() != Flash)
         return;
 
-    if (fid != m_function)
+    if (fid != m_functionID)
         return;
 
     // if the function was flashed by another button, and the function is still running, keep the button pushed
-    Function* f = m_doc->function(m_function);
+    Function* f = m_doc->function(m_functionID);
     if (state == false && actionType() == Toggle && f != NULL && f->isRunning())
     {
         return;
     }
 
     setOn(state);
+}
+
+FunctionParent VCButton::functionParent() const
+{
+    return FunctionParent(FunctionParent::ManualVCWidget, id());
 }
 
 /*********************************************************************
@@ -241,7 +259,7 @@ void VCButton::setOn(bool isOn)
     if (m_isOn == isOn)
         return;
 
-    if (m_function == Function::invalidId())
+    if (m_functionID == Function::invalidId())
         return;
 
     m_isOn = isOn;
@@ -252,12 +270,12 @@ void VCButton::setOn(bool isOn)
  * Button action
  *********************************************************************/
 
-VCButton::Action VCButton::actionType() const
+VCButton::ButtonAction VCButton::actionType() const
 {
     return m_actionType;
 }
 
-void VCButton::setActionType(VCButton::Action actionType)
+void VCButton::setActionType(ButtonAction actionType)
 {
     if (m_actionType == actionType)
         return;
@@ -266,7 +284,7 @@ void VCButton::setActionType(VCButton::Action actionType)
     emit actionTypeChanged(actionType);
 }
 
-QString VCButton::actionToString(VCButton::Action action)
+QString VCButton::actionToString(VCButton::ButtonAction action)
 {
     if (action == Flash)
         return QString(KXMLQLCVCButtonActionFlash);
@@ -278,7 +296,7 @@ QString VCButton::actionToString(VCButton::Action action)
         return QString(KXMLQLCVCButtonActionToggle);
 }
 
-VCButton::Action VCButton::stringToAction(const QString& str)
+VCButton::ButtonAction VCButton::stringToAction(const QString& str)
 {
     if (str == KXMLQLCVCButtonActionFlash)
         return Flash;
@@ -289,6 +307,17 @@ VCButton::Action VCButton::stringToAction(const QString& str)
     else
         return Toggle;
 }
+
+void VCButton::setStopAllFadeOutTime(int ms)
+{
+    m_blackoutFadeOutTime = ms;
+}
+
+int VCButton::stopAllFadeTime()
+{
+    return m_blackoutFadeOutTime;
+}
+
 
 /*****************************************************************************
  * Intensity adjustment
@@ -318,11 +347,9 @@ qreal VCButton::startupIntensity() const
  * Load & Save
  *********************************************************************/
 
-bool VCButton::loadXML(const QDomElement* root)
+bool VCButton::loadXML(QXmlStreamReader &root)
 {
-    Q_ASSERT(root != NULL);
-
-    if (root->tagName() != KXMLQLCVCButton)
+    if (root.name() != KXMLQLCVCButton)
     {
         qWarning() << Q_FUNC_INFO << "Button node not found";
         return false;
@@ -331,56 +358,102 @@ bool VCButton::loadXML(const QDomElement* root)
     /* Widget commons */
     loadXMLCommon(root);
 
-    QString str;
-    QDomNode node = root->firstChild();
-
-    while (node.isNull() == false)
+    while (root.readNextStartElement())
     {
-        QDomElement tag = node.toElement();
-        if (tag.tagName() == KXMLQLCWindowState)
+        if (root.name() == KXMLQLCWindowState)
         {
             bool visible = false;
             int x = 0, y = 0, w = 0, h = 0;
-            loadXMLWindowState(&tag, &x, &y, &w, &h, &visible);
+            loadXMLWindowState(root, &x, &y, &w, &h, &visible);
             setGeometry(QRect(x, y, w, h));
         }
-        else if (tag.tagName() == KXMLQLCVCWidgetAppearance)
+        else if (root.name() == KXMLQLCVCWidgetAppearance)
         {
-            loadXMLAppearance(&tag);
+            loadXMLAppearance(root);
         }
-        else if (tag.tagName() == KXMLQLCVCButtonFunction)
+        else if (root.name() == KXMLQLCVCButtonFunction)
         {
-            str = tag.attribute(KXMLQLCVCButtonFunctionID);
-            setFunction(str.toUInt());
+            QString str = root.attributes().value(KXMLQLCVCButtonFunctionID).toString();
+            setFunctionID(str.toUInt());
+            root.skipCurrentElement();
         }
-        else if (tag.tagName() == KXMLQLCVCButtonAction)
+        else if (root.name() == KXMLQLCVCButtonAction)
         {
-            setActionType(stringToAction(tag.text()));
+            //QXmlStreamAttributes attrs = root.attributes();
+            setActionType(stringToAction(root.readElementText()));
             /*
             if (tag.hasAttribute(KXMLQLCVCButtonStopAllFadeTime))
                 setStopAllFadeOutTime(tag.attribute(KXMLQLCVCButtonStopAllFadeTime).toInt());
             */
         }
-        else if (tag.tagName() == KXMLQLCVCButtonIntensity)
+        else if (root.name() == KXMLQLCVCButtonIntensity)
         {
             bool adjust;
-            if (tag.attribute(KXMLQLCVCButtonIntensityAdjust) == KXMLQLCTrue)
+            if (root.attributes().value(KXMLQLCVCButtonIntensityAdjust).toString() == KXMLQLCTrue)
                 adjust = true;
             else
                 adjust = false;
-            setStartupIntensity(qreal(tag.text().toInt()) / qreal(100));
+            setStartupIntensity(qreal(root.readElementText().toInt()) / qreal(100));
             enableStartupIntensity(adjust);
         }
         else
         {
-            qWarning() << Q_FUNC_INFO << "Unknown button tag:" << tag.tagName();
+            qWarning() << Q_FUNC_INFO << "Unknown button tag:" << root.name().toString();
+            root.skipCurrentElement();
         }
-
-        node = node.nextSibling();
     }
 
-    /* All buttons start raised... */
-    //setOn(false);
+    return true;
+}
+
+bool VCButton::saveXML(QXmlStreamWriter *doc)
+{
+    Q_ASSERT(doc != NULL);
+
+    /* VC button entry */
+    doc->writeStartElement(KXMLQLCVCButton);
+
+    saveXMLCommon(doc);
+
+    /* Window state */
+    saveXMLWindowState(doc);
+
+    /* Appearance */
+    saveXMLAppearance(doc);
+
+    /* Function */
+    doc->writeStartElement(KXMLQLCVCButtonFunction);
+    doc->writeAttribute(KXMLQLCVCButtonFunctionID, QString::number(functionID()));
+    doc->writeEndElement();
+
+    /* Action */
+    doc->writeStartElement(KXMLQLCVCButtonAction);
+
+    if (actionType() == StopAll && stopAllFadeTime() != 0)
+        doc->writeAttribute(KXMLQLCVCButtonStopAllFadeTime, QString::number(stopAllFadeTime()));
+
+    doc->writeCharacters(actionToString(actionType()));
+    doc->writeEndElement();
+
+#if 0 // TODO
+    /* Key sequence */
+    if (m_keySequence.isEmpty() == false)
+        doc->writeTextElement(KXMLQLCVCButtonKey, m_keySequence.toString());
+#endif
+    /* Intensity adjustment */
+    doc->writeStartElement(KXMLQLCVCButtonIntensity);
+    doc->writeAttribute(KXMLQLCVCButtonIntensityAdjust,
+                     isStartupIntensityEnabled() ? KXMLQLCTrue : KXMLQLCFalse);
+    doc->writeCharacters(QString::number(int(startupIntensity() * 100)));
+    doc->writeEndElement();
+
+#if 0 // TODO
+    /* External input */
+    saveXMLInput(doc);
+#endif
+
+    /* End the <Button> tag */
+    doc->writeEndElement();
 
     return true;
 }

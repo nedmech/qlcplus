@@ -1,8 +1,9 @@
 /*
-  Q Light Controller
+  Q Light Controller Plus
   rgbmatrix.h
 
   Copyright (c) Heikki Junnila
+                Massimo Callegari
 
   Licensed under the Apache License, Version 2.0 (the "License");
   you may not use this file except in compliance with the License.
@@ -29,7 +30,11 @@
 #include <QMap>
 #include <QMutex>
 
-#include "rgbscript.h"
+#ifdef QT_QML_LIB
+  #include "rgbscriptv4.h"
+#else
+  #include "rgbscript.h"
+#endif
 #include "function.h"
 
 class FixtureGroup;
@@ -51,6 +56,7 @@ class RGBMatrix : public Function
      * Initialization
      *********************************************************************/
 public:
+    RGBMatrix() {}
     RGBMatrix(Doc* parent);
     ~RGBMatrix();
 
@@ -58,10 +64,10 @@ public:
      * Contents
      *********************************************************************/
 public:
-    /** Set the matrix total duration in milliseconds */
+    /** @reimpl */
     void setTotalDuration(quint32 msec);
 
-    /** Get the matrix total duration in milliseconds */
+    /** @reimpl */
     quint32 totalDuration();
 
     /** Set the matrix to control or not the dimmer channel */
@@ -92,6 +98,7 @@ public:
 
 private:
     quint32 m_fixtureGroupID;
+    FixtureGroup *m_group;
 
     /************************************************************************
      * Algorithm
@@ -154,10 +161,10 @@ private:
      ************************************************************************/
 public:
     /** @reimpl */
-    bool loadXML(const QDomElement& root);
+    bool loadXML(QXmlStreamReader &root);
 
     /** @reimpl */
-    bool saveXML(QDomDocument* doc, QDomElement* root);
+    bool saveXML(QXmlStreamWriter *doc);
 
     /************************************************************************
      * Running
@@ -201,6 +208,13 @@ private:
 public:
     /** @reimpl */
     void adjustAttribute(qreal fraction, int attributeIndex);
+
+    /*************************************************************************
+     * Blend mode
+     *************************************************************************/
+public:
+    /** @reimpl */
+    void setBlendMode(Universe::BlendMode mode);
 };
 
 /** @} */

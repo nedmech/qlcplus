@@ -32,6 +32,8 @@ Rectangle
     property int functionID
     property int selectedFixtureIndex: -1
 
+    signal requestView(int ID, string qmlSrc)
+
     Component.onDestruction: functionManager.setEditorFunction(-1)
 
     function selectFixture(index)
@@ -68,12 +70,9 @@ Rectangle
                 {
                     anchors.fill: parent
                     hoverEnabled: true
-                    onClicked:
-                    {
-                        editorLoader.source = "qrc:/FunctionManager.qml"
-                    }
                     onEntered: backBox.color = "#666"
                     onExited: backBox.color = "transparent"
+                    onClicked:requestView(-1, "qrc:/FunctionManager.qml")
                 }
             }
             TextInput
@@ -81,11 +80,12 @@ Rectangle
                 id: sNameEdit
                 x: leftArrow.width + 5
                 height: 40
-                width: seContainer.width // - addFunc.width - removeFunc.width
+                width: seContainer.width - backBox.width - removeFxButton.width - 10
                 color: UISettings.fgMain
+                clip: true
                 text: sceneEditor.sceneName
                 verticalAlignment: TextInput.AlignVCenter
-                font.family: "RobotoCondensed"
+                font.family: "Roboto Condensed"
                 font.pixelSize: 20
                 echoMode: TextInput.Normal
                 selectByMouse: true

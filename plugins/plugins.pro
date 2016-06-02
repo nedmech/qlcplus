@@ -1,16 +1,14 @@
 TEMPLATE = subdirs
 
-!android {
+!android:!ios {
 
  SUBDIRS              += dmxusb
  SUBDIRS              += peperoni
  SUBDIRS              += udmx
  SUBDIRS              += midi
  unix {
-   system(pkg-config --exists libola) {
-     system(pkg-config --exists libolaserver) {
+   packagesExist(libola libolaserver) {
        SUBDIRS        += ola
-     }
    }
  }
  !macx:!win32:SUBDIRS += dmx4linux
@@ -20,9 +18,9 @@ TEMPLATE = subdirs
  !macx:!win32:SUBDIRS += spi
 
  greaterThan(QT_MAJOR_VERSION, 4) {
-    !macx:!win32:SUBDIRS += uart
+    #!macx:!win32:SUBDIRS += uart
+    #!macx:!win32:SUBDIRS += gpio
  }
- #!macx:!win32:SUBDIRS += gpio
 }
 
 SUBDIRS              += artnet

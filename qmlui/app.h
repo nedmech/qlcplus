@@ -26,14 +26,15 @@
 #include "doc.h"
 
 class MainView2D;
-class QDomElement;
-class QDomDocument;
+class ShowManager;
+class ActionManager;
 class FixtureBrowser;
 class FixtureManager;
 class ContextManager;
-class FunctionManager;
-class InputOutputManager;
 class VirtualConsole;
+class FunctionManager;
+class QXmlStreamReader;
+class InputOutputManager;
 
 #define KXMLQLCWorkspace "Workspace"
 
@@ -63,6 +64,8 @@ private:
     FunctionManager *m_functionManager;
     InputOutputManager *m_ioManager;
     VirtualConsole *m_virtualConsole;
+    ShowManager *m_showManager;
+    ActionManager *m_actionManager;
 
     /*********************************************************************
      * Doc
@@ -132,7 +135,7 @@ public:
      *
      * @param doc The XML document to load from.
      */
-    bool loadXML(const QDomDocument& doc, bool goToConsole = false, bool fromMemory = false);
+    bool loadXML(QXmlStreamReader &doc, bool goToConsole = false, bool fromMemory = false);
 
 private:
     /**

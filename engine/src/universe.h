@@ -21,11 +21,13 @@
 #ifndef UNIVERSE_H
 #define UNIVERSE_H
 
+#include <QScopedPointer>
 #include <QByteArray>
 #include <QSet>
 
 #include "qlcchannel.h"
 
+class QXmlStreamReader;
 class QLCInputProfile;
 class ChannelModifier;
 class InputOutputMap;
@@ -165,6 +167,11 @@ protected:
      */
     uchar applyGM(int channel, uchar value);
 
+    uchar applyRelative(int channel, uchar value);
+    uchar applyModifiers(int channel, uchar value);
+    uchar applyPassthrough(int channel, uchar value);
+    void updatePostGMValue(int channel);
+
 signals:
     void nameChanged();
 
@@ -244,6 +251,12 @@ private:
     /** Reference to the feedback patch associated to this universe. */
     OutputPatch* m_fbPatch;
 
+private:
+    // Connect to inputPatch's valueChanged signal
+    void connectInputPatch();
+    // Disconnect from inputPatch's valueChanged signal
+    void disconnectInputPatch();
+
     /************************************************************************
      * Channels capabilities and modifiers
      ************************************************************************/
@@ -273,11 +286,14 @@ public:
 
 protected:
     /** An array of each channel's capabilities. This helps to optimize HTP/LTP/Relative checks */
-    QByteArray* m_channelsMask;
+    QScopedPointer<QByteArray> m_channelsMask;
 
     /** Vector of pointer to ChannelModifier classes. If not NULL, they will modify
      *  a DMX value right before HTP/LTP check and before being assigned to preGM */
     QVector<ChannelModifier*> m_modifiers;
+    /** Modified channels with the non-modified value at 0.
+     *  This is used for ranged initialization operations. */
+    QScopedPointer<QByteArray> m_modifiedZeroValues;
 
     /************************************************************************
      * Values
@@ -295,6 +311,14 @@ public:
      * @param range Number of channels, starting from address, to reset
      */
     void reset(int address, int range);
+
+    /**
+     * Get the current post-Grand-Master value (used by functions and everyone
+     * else INSIDE QLC+) at specified address.
+     *
+     * @return The current value at address
+     */
+    uchar postGMValue(int address) const;
 
     /**
      * Get the current post-Grand-Master values (to be written to output HW)
@@ -318,7 +342,7 @@ public:
 
     /**
      * Get the current pre-Grand-Master value (used by functions and everyone
-     * else INSIDE QLC) at specified address.
+     * else INSIDE QLC+) at specified address.
      *
      * @return The current value at address
      */
@@ -332,6 +356,9 @@ public:
 
     /** Set all channel relative values to zero */
     void zeroRelativeValues();
+
+protected:
+    void applyPassthroughValues(int address, int range);
 
 protected:
     /**
@@ -356,17 +383,47 @@ protected:
      */
     bool m_totalChannelsChanged;
     /** A list of intensity channels to optimize operations on HTP/LTP channels */
-    QSet <int> m_intensityChannels;
+    QVector<int> m_intensityChannels;
+    /** A flag set to know when m_intensityChannelsRanges must be updated */
+    bool m_intensityChannelsChanged;
+    /**
+     * Intensity channels sorted as ranges, to further optimize ranged operations
+     * (ie set all to zero)
+     */
+    QVector<int> m_intensityChannelsRanges;
     /** A list of non-intensity channels to optimize operations on HTP/LTP channels */
-    QSet <int> m_nonIntensityChannels;
+    QVector<int> m_nonIntensityChannels;
     /** Array of values BEFORE the Grand Master changes */
-    QByteArray* m_preGMValues;
+    QScopedPointer<QByteArray> m_preGMValues;
     /** Array of values AFTER the Grand Master changes (applyGM) */
-    QByteArray* m_postGMValues;
+    QScopedPointer<QByteArray> m_postGMValues;
     /** Array of the last preGM values written before the zeroIntensityChannels call  */
-    QByteArray* m_lastPostGMValues;
+    QScopedPointer<QByteArray> m_lastPostGMValues;
+
+    /** Array of values from input line, when passtrhough is enabled */
+    QScopedPointer<QByteArray> m_passthroughValues;
 
     QVector<short> m_relativeValues;
+
+    /* impl speedup */
+    void updateIntensityChannelsRanges();
+
+    /************************************************************************
+     * Blend mode
+     ************************************************************************/
+public:
+    enum BlendMode {
+        NormalBlend = 0,
+        MaskBlend,
+        AdditiveBlend,
+        SubtractiveBlend
+    };
+
+    /** Return a blend mode from a string */
+    static BlendMode stringToBlendMode(QString mode);
+
+    /** Return a string from a blend mode, to be saved into a XML */
+    static QString blendModeToString(BlendMode mode);
 
     /************************************************************************
      * Writing
@@ -394,18 +451,41 @@ public:
      */
     bool writeRelative(int channel, uchar value);
 
+    /**
+     * Write DMX values with the given blend mode.
+     * If blend == NormalBlend the generic write method is called
+     * and all the HTP/LTP checks are performed
+     *
+     * @param channel The channel number to write to
+     * @param value The value to write
+     * @param blend The blend mode to be used on $value
+     *
+     * @return true if successful, otherwise false
+     */
+    bool writeBlended(int channel, uchar value, BlendMode blend = NormalBlend);
+
     /*********************************************************************
      * Load & Save
      *********************************************************************/
 public:
 
+    enum PatchTagType { InputPatchTag, OutputPatchTag, FeedbackPatchTag };
+
     /**
      * Load a universe contents from the given XML node.
      *
      * @param root An XML subtree containing the universe contents
-     * @return true if the map was loaded successfully, otherwise false
+     * @return true if the Universe was loaded successfully, otherwise false
      */
-    bool loadXML(const QDomElement& root, int index, InputOutputMap* ioMap);
+    bool loadXML(QXmlStreamReader &root, int index, InputOutputMap* ioMap);
+
+    /**
+     * Load an optional tag defining the plugin specific parameters
+     * @param root An XML subtree containing the plugin parameters contents
+     * @param currentTag the type of Patch where the parameters should be set
+     * @return true if the parameters were loaded successfully, otherwise false
+     */
+    bool loadXMLPluginParameters(QXmlStreamReader &root, PatchTagType currentTag);
 
     /**
      * Save the universe instance into an XML document, under the given
@@ -414,7 +494,7 @@ public:
      * @param doc The master XML document to save to.
      * @param wksp_root The workspace root element
      */
-    bool saveXML(QDomDocument* doc, QDomElement* wksp_root) const;
+    bool saveXML(QXmlStreamWriter *doc) const;
 
     /**
      * Save a plugin custom parameters (if available) into a tag nested
@@ -424,7 +504,7 @@ public:
      * @param wksp_root The workspace root element
      * @param parameters The map of custom parameters to save
      */
-    bool savePluginParametersXML(QDomDocument* doc, QDomElement* wksp_root,
+    bool savePluginParametersXML(QXmlStreamWriter *doc,
                                  QMap<QString, QVariant>parameters) const;
 };
 

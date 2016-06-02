@@ -1,8 +1,9 @@
 /*
-  Q Light Controller
+  Q Light Controller Plus
   efxfixture.h
 
   Copyright (c) Heikki Junnila
+                Massimo Callegari
 
   Licensed under the Apache License, Version 2.0 (the "License");
   you may not use this file except in compliance with the License.
@@ -105,19 +106,6 @@ public:
     /** Get the parameter(s) that this efx will animate (ie. dimmer, RGB, ...) */
     Mode mode() const;
 
-
-    /**
-     * Set a value to fade the fixture's intensity channel(s) to
-     * during start().
-     */
-    void setFadeIntensity(uchar value);
-
-    /**
-     * Get the value to fade the fixture's intensity channel(s) to
-     * during start().
-     */
-    uchar fadeIntensity() const;
-
     /**
      * Check that this object has a fixture ID and at least LSB channel
      * for pan and/or tilt.
@@ -141,14 +129,13 @@ private:
     Function::Direction m_direction;
     int m_startOffset;
     Mode m_mode;
-    uchar m_fadeIntensity;
 
     /*************************************************************************
      * Load & Save
      *************************************************************************/
 public:
-    bool loadXML(const QDomElement& root);
-    bool saveXML(QDomDocument* doc, QDomElement* efx_root) const;
+    bool loadXML(QXmlStreamReader &root);
+    bool saveXML(QXmlStreamWriter *doc) const;
 
     /*************************************************************************
      * Run-time properties
@@ -211,26 +198,7 @@ private:
     /* Run the stop scene if necessary */
     void stop(MasterTimer* timer, QList<Universe *> universes);
 
-    /*************************************************************************
-     * Intensity adjustment
-     *************************************************************************/
-public:
-    /**
-     * Adjust the intensity of the fixture by a fraction.
-     *
-     * @param fraction Intensity fraction 0.0 - 1.0
-     */
-    void adjustIntensity(qreal fraction);
-
-    /**
-     * Get the adjusted intensity percentage
-     *
-     * @return Intensity 0.0 - 1.0
-     */
-    qreal intensity() const;
-
 private:
-    qreal m_intensity;
     static QImage m_rgbGradient;
 
     void setFadeChannel(quint32 nChannel, uchar val);

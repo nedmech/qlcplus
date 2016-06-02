@@ -17,13 +17,16 @@
   limitations under the License.
 */
 
+#include <QXmlStreamReader>
+#include <QXmlStreamWriter>
 #include <QQmlEngine>
 #include <QDebug>
-#include <QtXml>
 
 #include "vcframe.h"
 #include "vclabel.h"
+#include "vcclock.h"
 #include "vcbutton.h"
+#include "vcslider.h"
 #include "vcsoloframe.h"
 #include "virtualconsole.h"
 
@@ -114,6 +117,9 @@ QList<VCWidget *> VCFrame::children(bool recursive)
 void VCFrame::addWidget(QQuickItem *parent, QString wType, QPoint pos)
 {
     qDebug() << "[VCFrame] adding widget of type:" << wType << pos;
+
+    // reset all the drop targets, otherwise two overlapping
+    // frames can get the same drop event
     m_vc->resetDropTargets(true);
 
     VCWidget::WidgetType type = stringToType(wType);
@@ -154,15 +160,52 @@ void VCFrame::addWidget(QQuickItem *parent, QString wType, QPoint pos)
         {
             VCLabel *label = new VCLabel(m_doc, this);
             QQmlEngine::setObjectOwnership(label, QQmlEngine::CppOwnership);
-            label->setGeometry(QRect(pos.x(), pos.y(), 100, 100));
+            label->setGeometry(QRect(pos.x(), pos.y(), 100, 30));
             setupWidget(label);
             m_vc->addWidgetToMap(label);
             label->render(m_vc->view(), parent);
         }
         break;
+        case SliderWidget:
+        {
+            VCSlider *slider = new VCSlider(m_doc, this);
+            QQmlEngine::setObjectOwnership(slider, QQmlEngine::CppOwnership);
+            slider->setGeometry(QRect(pos.x(), pos.y(), 60, 200));
+            setupWidget(slider);
+            m_vc->addWidgetToMap(slider);
+            slider->render(m_vc->view(), parent);
+        }
+        break;
+        case ClockWidget:
+        {
+            VCClock *clock = new VCClock(m_doc, this);
+            QQmlEngine::setObjectOwnership(clock, QQmlEngine::CppOwnership);
+            clock->setGeometry(QRect(pos.x(), pos.y(), 150, 50));
+            setupWidget(clock);
+            m_vc->addWidgetToMap(clock);
+            clock->render(m_vc->view(), parent);
+        }
+        break;
         default:
         break;
     }
+}
+
+void VCFrame::addFunction(QQuickItem *parent, quint32 funcID, QPoint pos, bool modifierPressed)
+{
+    Q_UNUSED(modifierPressed)
+
+    // reset all the drop targets, otherwise two overlapping
+    // frames can get the same drop event
+    m_vc->resetDropTargets(true);
+
+    VCButton *button = new VCButton(m_doc, this);
+    QQmlEngine::setObjectOwnership(button, QQmlEngine::CppOwnership);
+    button->setGeometry(QRect(pos.x(), pos.y(), 100, 100));
+    button->setFunctionID(funcID);
+    setupWidget(button);
+    m_vc->addWidgetToMap(button);
+    button->render(m_vc->view(), parent);
 }
 
 void VCFrame::deleteChildren()
@@ -391,11 +434,9 @@ QString VCFrame::xmlTagName() const
     return KXMLQLCVCFrame;
 }
 
-bool VCFrame::loadXML(const QDomElement* root)
+bool VCFrame::loadXML(QXmlStreamReader &root)
 {
-    Q_ASSERT(root != NULL);
-
-    if (root->tagName() != xmlTagName())
+    if (root.name() != xmlTagName())
     {
         qWarning() << Q_FUNC_INFO << "Frame node not found";
         return false;
@@ -404,59 +445,59 @@ bool VCFrame::loadXML(const QDomElement* root)
     /* Widget commons */
     loadXMLCommon(root);
 
-    /* Children */
-    QDomNode node = root->firstChild();
     int currentPage = 0;
 
-    while (node.isNull() == false)
+    /* Children */
+    while (root.readNextStartElement())
     {
-        QDomElement tag = node.toElement();
-        if (tag.tagName() == KXMLQLCWindowState)
+        if (root.name() == KXMLQLCWindowState)
         {
             /* Frame geometry (visibility is ignored) */
             int x = 0, y = 0, w = 0, h = 0;
             bool visible = false;
-            loadXMLWindowState(&tag, &x, &y, &w, &h, &visible);
+            loadXMLWindowState(root, &x, &y, &w, &h, &visible);
             setGeometry(QRect(x, y, w, h));
         }
-        else if (tag.tagName() == KXMLQLCVCWidgetAppearance)
+        else if (root.name() == KXMLQLCVCWidgetAppearance)
         {
             /* Frame appearance */
-            loadXMLAppearance(&tag);
+            loadXMLAppearance(root);
         }
-        else if (tag.tagName() == KXMLQLCVCFrameShowHeader)
+        else if (root.name() == KXMLQLCVCFrameShowHeader)
         {
-            if (tag.text() == KXMLQLCTrue)
+            if (root.readElementText() == KXMLQLCTrue)
                 setShowHeader(true);
             else
                 setShowHeader(false);
         }
-        else if (tag.tagName() == KXMLQLCVCFrameIsCollapsed)
+        else if (root.name() == KXMLQLCVCFrameIsCollapsed)
         {
             /* Collapsed */
-            if (tag.text() == KXMLQLCTrue)
+            if (root.readElementText() == KXMLQLCTrue)
                 setCollapsed(true);
         }
-        else if (tag.tagName() == KXMLQLCVCFrameShowEnableButton)
+        else if (root.name() == KXMLQLCVCFrameShowEnableButton)
         {
-            if (tag.text() == KXMLQLCTrue)
+            if (root.readElementText() == KXMLQLCTrue)
                 setShowEnable(true);
             else
                 setShowEnable(false);
         }
-        else if (tag.tagName() == KXMLQLCVCFrameMultipage)
+        else if (root.name() == KXMLQLCVCFrameMultipage)
         {
             setMultiPageMode(true);
-            if (tag.hasAttribute(KXMLQLCVCFramePagesNumber))
-                setTotalPagesNumber(tag.attribute(KXMLQLCVCFramePagesNumber).toInt());
+            QXmlStreamAttributes attrs = root.attributes();
+            if (attrs.hasAttribute(KXMLQLCVCFramePagesNumber))
+                setTotalPagesNumber(attrs.value(KXMLQLCVCFramePagesNumber).toInt());
 
-            if(tag.hasAttribute(KXMLQLCVCFrameCurrentPage))
-                currentPage = tag.attribute(KXMLQLCVCFrameCurrentPage).toInt();
+            if(attrs.hasAttribute(KXMLQLCVCFrameCurrentPage))
+                currentPage = attrs.value(KXMLQLCVCFrameCurrentPage).toInt();
+            root.skipCurrentElement();
         }
 
         /** ***************** children widgets *************************** */
 
-        else if (tag.tagName() == KXMLQLCVCFrame)
+        else if (root.name() == KXMLQLCVCFrame)
         {
             /* Create a new frame into its parent */
             VCFrame* frame = new VCFrame(m_doc, m_vc, this);
@@ -466,7 +507,7 @@ bool VCFrame::loadXML(const QDomElement* root)
             if (xmlTagName() == KXMLQLCVCSoloFrame || m_hasSoloParent == true)
                 frame->setHasSoloParent(true);
 
-            if (frame->loadXML(&tag) == false)
+            if (frame->loadXML(root) == false)
                 delete frame;
             else
             {
@@ -475,11 +516,11 @@ bool VCFrame::loadXML(const QDomElement* root)
                 m_vc->addWidgetToMap(frame);
             }
         }
-        else if (tag.tagName() == KXMLQLCVCSoloFrame)
+        else if (root.name() == KXMLQLCVCSoloFrame)
         {
             /* Create a new frame into its parent */
             VCSoloFrame* soloframe = new VCSoloFrame(m_doc, m_vc, this);
-            if (soloframe->loadXML(&tag) == false)
+            if (soloframe->loadXML(root) == false)
                 delete soloframe;
             else
             {
@@ -488,11 +529,11 @@ bool VCFrame::loadXML(const QDomElement* root)
                 m_vc->addWidgetToMap(soloframe);
             }
         }
-        else if (tag.tagName() == KXMLQLCVCButton)
+        else if (root.name() == KXMLQLCVCButton)
         {
             /* Create a new button into its parent */
             VCButton* button = new VCButton(m_doc, this);
-            if (button->loadXML(&tag) == false)
+            if (button->loadXML(root) == false)
                 delete button;
             else
             {
@@ -501,11 +542,11 @@ bool VCFrame::loadXML(const QDomElement* root)
                 m_vc->addWidgetToMap(button);
             }
         }
-        else if (tag.tagName() == KXMLQLCVCLabel)
+        else if (root.name() == KXMLQLCVCLabel)
         {
             /* Create a new label into its parent */
             VCLabel* label = new VCLabel(m_doc, this);
-            if (label->loadXML(&tag) == false)
+            if (label->loadXML(root) == false)
                 delete label;
             else
             {
@@ -514,12 +555,37 @@ bool VCFrame::loadXML(const QDomElement* root)
                 m_vc->addWidgetToMap(label);
             }
         }
+        else if (root.name() == KXMLQLCVCSlider)
+        {
+            /* Create a new slider into its parent */
+            VCSlider* slider = new VCSlider(m_doc, this);
+            if (slider->loadXML(root) == false)
+                delete slider;
+            else
+            {
+                QQmlEngine::setObjectOwnership(slider, QQmlEngine::CppOwnership);
+                setupWidget(slider);
+                m_vc->addWidgetToMap(slider);
+            }
+        }
+        else if (root.name() == KXMLQLCVCClock)
+        {
+            /* Create a new clock into its parent */
+            VCClock* clock = new VCClock(m_doc, this);
+            if (clock->loadXML(root) == false)
+                delete clock;
+            else
+            {
+                QQmlEngine::setObjectOwnership(clock, QQmlEngine::CppOwnership);
+                setupWidget(clock);
+                m_vc->addWidgetToMap(clock);
+            }
+        }
         else
         {
-            qWarning() << Q_FUNC_INFO << "Unknown frame tag:" << tag.tagName();
+            qWarning() << Q_FUNC_INFO << "Unknown frame tag:" << root.name().toString();
+            root.skipCurrentElement();
         }
-
-        node = node.nextSibling();
     }
 
     if (multiPageMode() == true)
@@ -528,4 +594,104 @@ bool VCFrame::loadXML(const QDomElement* root)
     return true;
 }
 
+bool VCFrame::saveXML(QXmlStreamWriter *doc)
+{
+    Q_ASSERT(doc != NULL);
 
+    /* VC Frame entry */
+    doc->writeStartElement(xmlTagName());
+
+    saveXMLCommon(doc);
+
+    /* Save appearance */
+    saveXMLAppearance(doc);
+
+    /* Save widget proportions only for child frames */
+    saveXMLWindowState(doc);
+
+    /* Allow resize */
+    doc->writeTextElement(KXMLQLCVCFrameAllowResize, allowResize() ? KXMLQLCTrue : KXMLQLCFalse);
+
+    /* ShowHeader */
+    doc->writeTextElement(KXMLQLCVCFrameShowHeader, showHeader() ? KXMLQLCTrue : KXMLQLCFalse);
+
+    /* ShowEnableButton */
+    doc->writeTextElement(KXMLQLCVCFrameShowEnableButton, showEnable() ? KXMLQLCTrue : KXMLQLCFalse);
+
+#if 0 // TODO
+    /* Solo frame mixing */
+    if (this->type() == SoloFrameWidget)
+    {
+        if (reinterpret_cast<VCSoloFrame*>(this)->soloframeMixing())
+            doc->writeTextElement(KXMLQLCVCSoloFrameMixing, KXMLQLCTrue);
+        else
+            doc->writeTextElement(KXMLQLCVCSoloFrameMixing, KXMLQLCFalse);
+    }
+#endif
+    /* Collapsed */
+    doc->writeTextElement(KXMLQLCVCFrameIsCollapsed, isCollapsed() ? KXMLQLCTrue : KXMLQLCFalse);
+
+    /* Disabled */
+    doc->writeTextElement(KXMLQLCVCFrameIsDisabled, isDisabled() ? KXMLQLCTrue : KXMLQLCFalse);
+
+#if 0 // TODO
+    /* Enable control */
+    QString keySeq = m_enableKeySequence.toString();
+    QSharedPointer<QLCInputSource> enableSrc = inputSource(enableInputSourceId);
+
+    if (keySeq.isEmpty() == false || (!enableSrc.isNull() && enableSrc->isValid()))
+    {
+        doc->writeStartElement(KXMLQLCVCFrameEnableSource);
+        if (keySeq.isEmpty() == false)
+            doc->writeTextElement(KXMLQLCVCWidgetKey, keySeq);
+        saveXMLInput(doc, enableSrc);
+        doc->writeEndElement();
+    }
+#endif
+    /* Multipage mode */
+    if (multiPageMode() == true)
+    {
+        doc->writeStartElement(KXMLQLCVCFrameMultipage);
+        doc->writeAttribute(KXMLQLCVCFramePagesNumber, QString::number(totalPagesNumber()));
+        doc->writeAttribute(KXMLQLCVCFrameCurrentPage, QString::number(currentPage()));
+        doc->writeEndElement();
+#if 0 // TODO
+        /* Next page */
+        keySeq = m_nextPageKeySequence.toString();
+        QSharedPointer<QLCInputSource> nextSrc = inputSource(nextPageInputSourceId);
+
+        if (keySeq.isEmpty() == false || (!nextSrc.isNull() && nextSrc->isValid()))
+        {
+            doc->writeStartElement(KXMLQLCVCFrameNext);
+            if (keySeq.isEmpty() == false)
+                doc->writeTextElement(KXMLQLCVCWidgetKey, keySeq);
+            saveXMLInput(doc, nextSrc);
+            doc->writeEndElement();
+        }
+
+        /* Previous page */
+        keySeq = m_previousPageKeySequence.toString();
+        QSharedPointer<QLCInputSource> prevSrc = inputSource(previousPageInputSourceId);
+
+        if (keySeq.isEmpty() == false || (!prevSrc.isNull() && prevSrc->isValid()))
+        {
+            doc->writeStartElement(KXMLQLCVCFramePrevious);
+            if (keySeq.isEmpty() == false)
+                doc->writeTextElement(KXMLQLCVCWidgetKey, keySeq);
+            saveXMLInput(doc, prevSrc);
+            doc->writeEndElement();
+        }
+#endif
+        /* Pages Loop */
+        doc->writeTextElement(KXMLQLCVCFramePagesLoop, m_pagesLoop ? KXMLQLCTrue : KXMLQLCFalse);
+    }
+
+    /* Save children */
+    foreach(VCWidget *child, children(false))
+        child->saveXML(doc);
+
+    /* End the <Frame> tag */
+    doc->writeEndElement();
+
+    return true;
+}

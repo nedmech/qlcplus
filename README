@@ -41,6 +41,7 @@ limitations under the License.
 Requirements - Linux
 --------------------
 * Qt >= 4.6 development libraries & tools
+* libudev-dev, libmad0-dev, libsndfile1-dev, libfftw3-dev
 
 * Enttec DMX USB plugin: libftdi-dev, pkg-config
 * HID plugin: No additional requirements
@@ -58,7 +59,7 @@ Requirements - Linux
 Requirements - Windows
 ----------------------
 * MinGW / MSYS environment (http://sourceforge.net/projects/mingw/files/Installer/mingw-get-inst/)
-* Qt >= 4.6 (http://releases.qt-project.org/qt4/source/)
+* Qt >= 4.6 (http://download.qt.io/official_releases/qt/)
 
 * Enttec DMX USB plugin: No additional requirements
 * HID plugin: Not available
@@ -76,7 +77,7 @@ Requirements - Windows
 Requirements - Mac OS X
 -----------------------
 * XCode (http://developer.apple.com/technologies/tools/xcode.html)
-* Qt SDK >= 4.8.x (http://qt.nokia.com/downloads/qt-for-open-source-cpp-development-on-mac-os-x)
+* Qt SDK >= 4.8.x (http://download.qt.io/official_releases/qt/)
 
 * Enttec DMX USB plugin: macports, libftdi-dev, pkg-config
 * HID plugin: Not available
@@ -118,6 +119,7 @@ Contributors
 QLC+:
 Jano Svitok (bugfix, new features and improvements)
 David Garyga (bugfix, new features and improvements)
+Robert Box (fixtures review)
 Thomas Achtner (ENTTEC wing improvements)
 Joep Admiraal (MIDI SysEx init messages, Dutch translation)
 Florian Euchner (FX5 USB DMX support)

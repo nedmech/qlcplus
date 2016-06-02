@@ -50,7 +50,11 @@ INSTALLS   += target
 
 # UDEV rule to make uDMX USB device readable & writable for users in Linux
 unix:!macx {
-    udev.path  = /etc/udev/rules.d
+    udev.path  = $$UDEVRULESDIR
     udev.files = z65-anyma-udmx.rules
     INSTALLS  += udev
+
+    metainfo.path   = $$INSTALLROOT/share/appdata/
+    metainfo.files += qlcplus-udmx.metainfo.xml
+    INSTALLS       += metainfo
 }

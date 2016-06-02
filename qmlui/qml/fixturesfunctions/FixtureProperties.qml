@@ -54,7 +54,8 @@ Rectangle
     function updateAvailableAddress()
     {
         fxAddressSpin.value =
-                fixtureBrowser.availableChannel(fxUniverseIndex, fxChannels, fxAddressSpin.value - 1) + 1
+                fixtureBrowser.availableChannel(fxUniverseIndex, fxChannels,
+                                                fxQuantity, fxGap, fxAddressSpin.value - 1) + 1
     }
 
     Column
@@ -223,10 +224,8 @@ Rectangle
                         height: 30
                         Layout.fillWidth: true
                         model: fixtureBrowser.modes(fxManufacturer, fxModel)
-                        onCurrentIndexChanged:
-                        {
-                            fxProps.fxMode = currentText
-                        }
+                        onModelChanged: currentIndex = 0
+                        onCurrentTextChanged: fxProps.fxMode = currentText
                     }
                     IconButton
                     {

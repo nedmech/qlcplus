@@ -200,6 +200,9 @@ private:
 
     int getNextStepIndex();
 
+private:
+    FunctionParent functionParent() const;
+
 public:
     /**
      * Call this from the parent function's write() method to run the steps.
@@ -209,6 +212,9 @@ public:
      * @return true if the chaser should continue, otherwise false
      */
     bool write(MasterTimer* timer, QList<Universe*> universes);
+
+    /** If running, pauses the runner and all the current running steps. */
+    void setPause(bool enable);
 
     /**
      * Perform postRun operations. Call this from the parent function's postRun().

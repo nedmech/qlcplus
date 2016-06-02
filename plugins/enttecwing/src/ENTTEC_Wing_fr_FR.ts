@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!DOCTYPE TS>
-<TS version="2.1" language="fr_FR">
+<TS version="2.0" language="fr_FR">
 <context>
     <name>EnttecWing</name>
     <message>
         <location filename="enttecwing.cpp" line="128"/>
         <source>This plugin provides input support for Enttec Playback and Enttec Shortcut Wings.</source>
-        <translation>Ce plugin permet le support de l&apos;entrée des interfaces Enttec Playback et Shortcut Wings.</translation>
+        <translation>Ce plugin offre le support de l&apos;entrée des interfaces Enttec Playback et Shortcut Wings.</translation>
     </message>
     <message>
         <location filename="enttecwing.cpp" line="145"/>

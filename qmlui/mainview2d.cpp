@@ -63,6 +63,26 @@ void MainView2D::enableContext(bool enable)
         slotRefreshView();
 }
 
+void MainView2D::setUniverseFilter(quint32 universeFilter)
+{
+    PreviewContext::setUniverseFilter(universeFilter);
+    QMapIterator<quint32, QQuickItem*> it(m_itemsMap);
+    while(it.hasNext())
+    {
+        it.next();
+        quint32 fxID = it.key();
+        QQuickItem *fxItem = it.value();
+        Fixture *fixture = m_doc->fixture(fxID);
+        if (fixture == NULL)
+            continue;
+
+        if (universeFilter == Universe::invalid() || fixture->universe() == universeFilter)
+            fxItem->setProperty("visible", "true");
+        else
+            fxItem->setProperty("visible", "false");
+    }
+}
+
 void MainView2D::resetItems()
 {
     QMapIterator<quint32, QQuickItem*> it(m_itemsMap);
@@ -135,6 +155,7 @@ void MainView2D::createFixtureItem(quint32 fxID, qreal x, qreal y, bool mmCoords
         QPointF fxOrig = m_monProps->fixturePosition(fxID);
         fxRect.setX(fxOrig.x());
         fxRect.setY(fxOrig.y());
+        newFixtureItem->setProperty("rotation", m_monProps->fixtureRotation(fxID));
     }
 
     if (fxMode != NULL)

@@ -1,8 +1,9 @@
 /*
-  Q Light Controller
+  Q Light Controller Plus
   function.h
 
   Copyright (C) 2004 Heikki Junnila
+                     Massimo Callegari
 
   Licensed under the Apache License, Version 2.0 (the "License");
   you may not use this file except in compliance with the License.
@@ -27,13 +28,14 @@
 #include <QList>
 #include <QIcon>
 
-class QDomDocument;
-class QDomElement;
+#include "universe.h"
+#include "functionparent.h"
+
+class QXmlStreamReader;
 
 class GenericFader;
 class MasterTimer;
 class Function;
-class Universe;
 class Doc;
 
 class FunctionUiState;
@@ -48,6 +50,7 @@ class FunctionUiState;
 #define KXMLQLCFunctionType "Type"
 #define KXMLQLCFunctionData "Data"
 #define KXMLQLCFunctionPath "Path"
+#define KXMLQLCFunctionBlendMode "BlendMode"
 
 #define KXMLQLCFunctionValue "Value"
 #define KXMLQLCFunctionValueType "Type"
@@ -81,6 +84,7 @@ class Function : public QObject
     Q_PROPERTY(QString name READ name WRITE setName NOTIFY nameChanged)
     Q_PROPERTY(quint32 id READ id CONSTANT)
     Q_PROPERTY(Type type READ type CONSTANT)
+    Q_PROPERTY(quint32 totalDuration READ totalDuration WRITE setTotalDuration NOTIFY totalDurationChanged)
 
 public:
     /**
@@ -266,13 +270,14 @@ private:
      *********************************************************************/
 protected:
     /** Save function's common attributes in $doc, under $root */
-    bool saveXMLCommon(QDomElement* root) const;
+    bool saveXMLCommon(QXmlStreamWriter *doc) const;
 
     /*********************************************************************
      * Running order
      *********************************************************************/
 public:
-    enum RunOrder { Loop, SingleShot, PingPong, Random };
+    enum RunOrder { Loop = 0, SingleShot, PingPong, Random };
+    Q_ENUMS(RunOrder)
 
 public:
     /**
@@ -302,11 +307,11 @@ public:
     static Function::RunOrder stringToRunOrder(const QString& str);
 
 protected:
-    /** Save function's running order in $doc, under $root */
-    bool saveXMLRunOrder(QDomDocument* doc, QDomElement* root) const;
+    /** Save function's running order in $doc */
+    bool saveXMLRunOrder(QXmlStreamWriter *doc) const;
 
     /** Load function's direction from $root */
-    bool loadXMLRunOrder(const QDomElement& root);
+    bool loadXMLRunOrder(QXmlStreamReader &root);
 
 private:
     RunOrder m_runOrder;
@@ -315,7 +320,8 @@ private:
      * Direction
      *********************************************************************/
 public:
-    enum Direction { Forward, Backward };
+    enum Direction { Forward = 0, Backward };
+    Q_ENUMS(Direction)
 
 public:
     /**
@@ -345,11 +351,11 @@ public:
     static Function::Direction stringToDirection(const QString& str);
 
 protected:
-    /** Save function's direction in $doc, under $root */
-    bool saveXMLDirection(QDomDocument* doc, QDomElement* root) const;
+    /** Save function's direction in $doc */
+    bool saveXMLDirection(QXmlStreamWriter *doc) const;
 
     /** Load function's direction from $root */
-    bool loadXMLDirection(const QDomElement& root);
+    bool loadXMLDirection(QXmlStreamReader &root);
 
 private:
     Direction m_direction;
@@ -375,6 +381,16 @@ public:
 
     /** Get the duration in milliseconds */
     uint duration() const;
+
+    /** Get the total duration in milliseconds.
+     *  This differs from duration as it considers
+     *  the steps or the specific Function parameters */
+    virtual quint32 totalDuration();
+
+    /** Set the total duration in milliseconds.
+     *  This method should be reimplemented only
+     *  by Functions supporting the stretch functionality */
+    virtual void setTotalDuration(quint32 msec);
 
     /** Set the override fade in speed (done by chaser in Common speed mode) */
     void setOverrideFadeInSpeed(uint ms);
@@ -411,12 +427,15 @@ public:
     static uint speedAdd(uint left, uint right);
     static uint speedSubstract(uint left, uint right);
 
+signals:
+    void totalDurationChanged();
+
 protected:
     /** Load the contents of a speed node */
-    bool loadXMLSpeed(const QDomElement& speedRoot);
+    bool loadXMLSpeed(QXmlStreamReader &speedRoot);
 
-    /** Save function's speed values under the given $root element in $doc */
-    bool saveXMLSpeed(QDomDocument* doc, QDomElement* root) const;
+    /** Save function's speed values in $doc */
+    bool saveXMLSpeed(QXmlStreamWriter *doc) const;
 
 private:
     uint m_fadeInSpeed;
@@ -455,9 +474,8 @@ public:
      * Save this function to an XML document
      *
      * @param doc The XML document to save to
-     * @param wksp_root A QLC workspace XML root node to save under
      */
-    virtual bool saveXML(QDomDocument* doc, QDomElement* wksp_root);
+    virtual bool saveXML(QXmlStreamWriter *doc);
 
     /**
      * Read this function's contents from an XML document
@@ -465,7 +483,7 @@ public:
      * @param doc An XML document to load from
      * @param root An XML root element of a function
      */
-    virtual bool loadXML(const QDomElement& root);
+    virtual bool loadXML(QXmlStreamReader &root);
 
     /**
      * Load a new function from an XML tag and add it to the given doc
@@ -475,7 +493,7 @@ public:
      * @param doc The QLC document object, that owns all functions
      * @return true if successful, otherwise false
      */
-    static bool loader(const QDomElement& root, Doc* doc);
+    static bool loader(QXmlStreamReader &root, Doc* doc);
 
     /**
      * Called for each Function-based object after everything has been loaded.
@@ -612,19 +630,20 @@ public:
      * @param overrideFadeOut Override the function's default fade out speed
      * @param overrideDuration Override the function's default duration
      */
-    void start(MasterTimer* timer, bool child = false, quint32 startTime = 0,
+    void start(MasterTimer* timer, FunctionParent parent, quint32 startTime = 0,
                uint overrideFadeIn = defaultSpeed(),
                uint overrideFadeOut = defaultSpeed(),
                uint overrideDuration = defaultSpeed());
 
-	/**
-     * Check, whether the function was started by another function i.e.
-     * as the other function's child.
-     *
-	 * @return true If the function was started by another function.
-     *              Otherwise false.
-	 */
-    bool startedAsChild() const;
+    /**
+     * Pause a running Function. Subclasses should check the paused state
+     * immediately in the write call and, in case, return, to avoid performing
+     * any action and moreover to increment the elapsed time.
+     * This is declared as virtual for those subclasses where the actual
+     * Function progress is handled in a separate thread, like multimedia
+     * functions, or where the Function handles a few children Functions.
+     */
+    virtual void setPause(bool enable);
 
     /**
      * Mark the function to be stopped ASAP. MasterTimer will stop running
@@ -632,7 +651,7 @@ public:
      * There is no way to cancel it, but the function can be started again
      * normally.
      */
-    void stop();
+    void stop(FunctionParent parent);
 
     /**
      * Check, whether the function should be stopped ASAP. Functions can use this
@@ -659,16 +678,33 @@ public:
      */
     bool isRunning() const;
 
+    /**
+     * Check if the function is currently in a paused state. This is invoked
+     * by subclasses to understand if they have to do something during the
+     * write call
+     */
+    bool isPaused() const;
+
+    bool startedAsChild() const;
+
 private:
-    /** Stop flag, private to keep functions from modifying it. */
+    /** Running state flags. The rules are:
+     *  - m_stop resets also m_paused
+     *  - m_paused and m_running can be both true
+     *  - if m_paused is true, a start(...) call will just reset it to false
+     *  These are private to prevent Functions from modifying them. */
     bool m_stop;
     bool m_running;
+    bool m_paused;
+
+    QList<FunctionParent> m_sources;
+    QMutex m_sourcesMutex;
 
     QMutex m_stopMutex;
     QWaitCondition m_functionStopped;
 
     /*************************************************************************
-     * Intensity
+     * Attributes
      *************************************************************************/
 public:
     /**
@@ -737,9 +773,29 @@ signals:
     void attributeChanged(int index, qreal fraction);
 
 private:
-    bool m_startedAsChild;
-    //qreal m_intensity;
     QList <Attribute> m_attributes;
+
+public:
+    virtual bool contains(quint32 functionId);
+
+    /*************************************************************************
+     * Blend mode
+     *************************************************************************/
+public:
+    /**
+     * Set a specific blend mode to be used by this Function
+     * For now this is used only by RGBMatrix but it's been
+     * placed here for generic usage
+     */
+    virtual void setBlendMode(Universe::BlendMode mode);
+
+    /**
+     * Return the blend mode set on this Function
+     */
+    virtual Universe::BlendMode blendMode() const;
+
+private:
+    Universe::BlendMode m_blendMode;
 };
 
 /** @} */

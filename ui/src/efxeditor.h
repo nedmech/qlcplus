@@ -73,6 +73,8 @@ private:
         otherwise it is restarted as a normal EFX. */
     void continueRunning(bool running);
 
+    FunctionParent functionParent() const;
+
     EfxUiState * efxUiState();
 
 private slots:
@@ -108,7 +110,6 @@ private slots:
     void slotSpeedDialToggle(bool state);
     void slotFixtureItemChanged(QTreeWidgetItem* item, int column);
     void slotFixtureModeChanged(int index);
-    void slotFixtureIntensityChanged(int intensity);
     void slotFixtureStartOffsetChanged(int intensity);
     void slotAddFixtureClicked();
     void slotRemoveFixtureClicked();

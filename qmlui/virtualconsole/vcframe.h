@@ -23,7 +23,7 @@
 #include "vcwidget.h"
 
 #define KXMLQLCVCFrame "Frame"
-#define KXMLQLCVCFrameAllowChildren "AllowChildren"
+#define KXMLQLCVCFrameAllowChildren "AllowChildren"  // LEGACY
 #define KXMLQLCVCFrameAllowResize   "AllowResize"
 #define KXMLQLCVCFrameShowHeader    "ShowHeader"
 #define KXMLQLCVCFrameIsCollapsed   "Collapsed"
@@ -87,6 +87,7 @@ public:
     QList<VCWidget *>children(bool recursive = false);
 
     Q_INVOKABLE void addWidget(QQuickItem *parent, QString wType, QPoint pos);
+    Q_INVOKABLE void addFunction(QQuickItem *parent, quint32 funcID, QPoint pos, bool modifierPressed);
 
     void deleteChildren();
 
@@ -188,8 +189,8 @@ protected slots:
      *********************************************************************/
 
 public:
-    bool loadXML(const QDomElement* root);
-    //bool saveXML(QDomDocument* doc, QDomElement* vc_root, bool mainFrame = false);
+    bool loadXML(QXmlStreamReader &root);
+    bool saveXML(QXmlStreamWriter *doc);
 
 protected:
     /** Can be overridden by subclasses */

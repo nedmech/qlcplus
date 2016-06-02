@@ -36,8 +36,15 @@ Rectangle
     property bool isSelected: false
 
     signal toggled
-    signal clicked
+    signal clicked(int ID, var qItem, int mouseMods)
     signal doubleClicked(int ID, int Type)
+    signal destruction(int ID, var qItem)
+
+    Component.onDestruction:
+    {
+        if (cRef)
+            funcDelegate.destruction(cRef.id, funcDelegate)
+    }
 
     Rectangle
     {
@@ -52,7 +59,7 @@ Rectangle
         id: funcEntry
         width: parent.width
         height: parent.height
-        tLabel: textLabel
+        tLabel: cRef ? cRef.name : textLabel
         functionType: cRef ? cRef.type : -1
     }
     Rectangle
@@ -72,7 +79,7 @@ Rectangle
             FunctionDragItem
             {
                 funcID: cRef ? cRef.id : -1
-                funcLabel: textLabel
+                funcLabel: cRef ? cRef.name : textLabel
                 funcIcon: funcEntry.iSrc
             }
         drag.threshold: 30
@@ -88,10 +95,9 @@ Rectangle
 
         onClicked:
         {
-            isSelected = true
-            functionManager.selectFunction(cRef.id, funcDelegate,
-                                           (mouse.modifiers & Qt.ControlModifier))
-            //funcDelegate.clicked()
+            // inform the upper layers of the click.
+            // A ModelSelector will be in charge to actually select this item
+            funcDelegate.clicked(cRef.id, funcDelegate, mouse.modifiers)
         }
         onDoubleClicked:
         {

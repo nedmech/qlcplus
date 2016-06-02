@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!DOCTYPE TS>
-<TS version="2.1" language="fr_FR">
+<TS version="2.0" language="fr_FR">
 <context>
     <name>SPIConfiguration</name>
     <message>
@@ -39,7 +39,7 @@
     <message>
         <location filename="spiplugin.cpp" line="132"/>
         <source>This plugin provides DMX output for SPI devices.</source>
-        <translation>Ce plugin permet le support de la sortie des périphériques SPI.</translation>
+        <translation>Ce plugin offre le support de la sortie des périphériques SPI.</translation>
     </message>
 </context>
 </TS>

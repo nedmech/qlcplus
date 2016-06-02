@@ -1,8 +1,9 @@
 /*
-  Q Light Controller
+  Q Light Controller Plus
   vcxypadfixture.h
 
   Copyright (c) Heikki Junnila
+                Massimo Callegari
 
   Licensed under the Apache License, Version 2.0 (the "License");
   you may not use this file except in compliance with the License.
@@ -26,9 +27,9 @@
 
 #include "grouphead.h"
 
+class QXmlStreamReader;
+class QXmlStreamWriter;
 class VCXYPadFixture;
-class QDomDocument;
-class QDomElement;
 class Universe;
 class Doc;
 
@@ -97,12 +98,17 @@ public:
     QString xBrief() const;
 
 private:
+    void precompute();
+
+private:
     qreal m_xMin;
     qreal m_xMax;
     bool m_xReverse;
 
     quint32 m_xLSB;
     quint32 m_xMSB;
+    qreal m_xOffset;
+    qreal m_xRange;
 
     /********************************************************************
      * Y-Axis
@@ -123,13 +129,32 @@ private:
 
     quint32 m_yLSB;
     quint32 m_yMSB;
+    qreal m_yOffset;
+    qreal m_yRange;
+
+    /********************************************************************
+     * Display mode
+     ********************************************************************/
+public:
+    enum DisplayMode
+    {
+        Percentage = 0,
+        Degrees,
+        DMX
+    };
+
+    void setDisplayMode(DisplayMode mode);
+    DisplayMode displayMode() const;
+
+private:
+    DisplayMode m_displayMode;
 
     /********************************************************************
      * Load & Save
      ********************************************************************/
 public:
-    bool loadXML(const QDomElement& root);
-    bool saveXML(QDomDocument* doc, QDomElement* root) const;
+    bool loadXML(QXmlStreamReader &root);
+    bool saveXML(QXmlStreamWriter *doc) const;
 
     /********************************************************************
      * Running
@@ -138,11 +163,18 @@ public:
     void arm();
     void disarm();
 
+    void setEnabled(bool enable);
+    bool isEnabled() const;
+
     /** Write the value using x & y multipliers for the actual range */
     void writeDMX(qreal xmul, qreal ymul, QList<Universe*> universes);
 
     /** Read position from the current universe */
     void readDMX(QList<Universe*> universes, qreal & xmul, qreal & ymul);
+
+private:
+    /** Flag to enable/disable this fixture at runtime */
+    bool m_enabled;
 };
 
 /** @} */

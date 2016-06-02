@@ -30,9 +30,8 @@
 
 class SpeedDialWidget;
 class QGraphicsScene;
-class RGBMatrix;
+class RGBItem;
 class QTimer;
-class Doc;
 
 /** @addtogroup ui_functions
  * @{
@@ -75,6 +74,7 @@ private slots:
     void slotSpeedDialToggle(bool state);
     void slotPatternActivated(const QString& text);
     void slotFixtureGroupActivated(int index);
+    void slotBlendModeChanged(int index);
     void slotStartColorButtonClicked();
     void slotEndColorButtonClicked();
     void slotResetEndColorButtonClicked();
@@ -117,6 +117,9 @@ private slots:
     void slotPropertySpinChanged(int value);
 
 private:
+    FunctionParent functionParent() const;
+
+private:
     Doc* m_doc;
     RGBMatrix* m_matrix; // The RGBMatrix being edited
 
@@ -129,7 +132,7 @@ private:
     QTimer* m_previewTimer;
     uint m_previewIterator;
     int m_previewStep;
-    QHash <QLCPoint,QGraphicsItem*> m_previewHash;
+    QHash<QLCPoint, RGBItem*> m_previewHash;
 };
 
 /** @} */

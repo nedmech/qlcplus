@@ -28,6 +28,8 @@
 #include "qlcinputprofile.h"
 #include "grandmaster.h"
 
+class QXmlStreamReader;
+class QXmlStreamWriter;
 class QLCInputSource;
 class QLCIOPlugin;
 class OutputPatch;
@@ -245,9 +247,6 @@ signals:
     void universesWritten(int index, const QByteArray& universesCount);
 
 private:
-    /** Keep track of the lastest asigned universe ID */
-    quint32 m_latestUniverseId;
-
     /** The values of all universes */
     QList<Universe *> m_universeArray;
 
@@ -563,7 +562,7 @@ public:
      * @param root An XML subtree containing the input/output map contents
      * @return true if the map was loaded successfully, otherwise false
      */
-    bool loadXML(const QDomElement& root);
+    bool loadXML(QXmlStreamReader &root);
 
     /**
      * Save the input/output map instance into an XML document, under the given
@@ -572,7 +571,7 @@ public:
      * @param doc The master XML document to save to.
      * @param wksp_root The workspace root element
      */
-    bool saveXML(QDomDocument* doc, QDomElement* wksp_root) const;
+    bool saveXML(QXmlStreamWriter *doc) const;
 
 };
 

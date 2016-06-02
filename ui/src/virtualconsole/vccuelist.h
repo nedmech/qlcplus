@@ -1,8 +1,9 @@
 /*
-  Q Light Controller
+  Q Light Controller Plus
   vccuelist.h
 
-  Copyright (c) Heikki Junnila, Massimo Callegari
+  Copyright (c) Heikki Junnila
+                Massimo Callegari
 
   Licensed under the Apache License, Version 2.0 (the "License");
   you may not use this file except in compliance with the License.
@@ -26,10 +27,10 @@
 #include "dmxsource.h"
 #include "vcwidget.h"
 
+class QXmlStreamReader;
+class QXmlStreamWriter;
 class QTreeWidgetItem;
 class QProgressBar;
-class QDomDocument;
-class QDomElement;
 class QTreeWidget;
 class QToolButton;
 class QCheckBox;
@@ -49,12 +50,14 @@ class Doc;
 #define KXMLQLCVCCueList "CueList"
 #define KXMLQLCVCCueListFunction "Function" // Legacy
 #define KXMLQLCVCCueListChaser "Chaser"
-#define KXMLQLCVCCueListKey "Key"
+#define KXMLQLCVCCueListNextPrevBehavior "NextPrevBehavior"
 #define KXMLQLCVCCueListNext "Next"
 #define KXMLQLCVCCueListPrevious "Previous"
 #define KXMLQLCVCCueListPlayback "Playback"
+#define KXMLQLCVCCueListStop "Stop"
 #define KXMLQLCVCCueListCrossfadeLeft "CrossLeft"
 #define KXMLQLCVCCueListCrossfadeRight "CrossRight"
+#define KXMLQLCVCCueListSlidersMode "SlidersMode"
 
 /**
  * VCCueList provides a \ref VirtualConsole widget to control cue lists.
@@ -73,6 +76,7 @@ public:
     static const quint8 nextInputSourceId;
     static const quint8 previousInputSourceId;
     static const quint8 playbackInputSourceId;
+    static const quint8 stopInputSourceId;
     static const quint8 cf1InputSourceId;
     static const quint8 cf2InputSourceId;
 
@@ -113,9 +117,40 @@ public:
     /** Get the chaser function that is used as cue list steps */
     Chaser *chaser();
 
+public:
     /** Get the currently selected item index, otherwise 0 */
     int getCurrentIndex();
 
+private:
+    /** Get the index of the next item, based on the chaser direction */
+    int getNextIndex();
+
+    /** Get the index of the previous item, based on the chaser direction */
+    int getPrevIndex();
+
+    /** Get the index of the first item, based on the chaser direction */
+    int getFirstIndex();
+
+    /** Get the index of the last item, based on the chaser direction */
+    int getLastIndex();
+
+    /** Get the index of the item above the selected item */
+    int getNextTreeIndex();
+
+    /** Get the index of the item below the selected item */
+    int getPrevTreeIndex();
+
+    /** Get the index of the item on top of the tree */
+    int getFirstTreeIndex();
+
+    /** Get the index of the item at the bottom of the tree */
+    int getLastTreeIndex();
+
+private:
+    /** Get the intensity of the current primary slider */
+    qreal getPrimaryIntensity() const;
+
+public:
     /** @reimp */
     virtual void notifyFunctionStarting(quint32 fid, qreal intensity);
 
@@ -127,8 +162,11 @@ private:
     QTimer* m_updateTimer;
 
 public slots:
-    /** Play/stop the cue list from the current selection */
+    /** Play/stop/resume the cue list from the current selection */
     void slotPlayback();
+
+    /** Stop the cue list */
+    void slotStop();
 
     /** Skip to the next cue */
     void slotNextCue();
@@ -175,11 +213,25 @@ private:
     /** Stop associated */
     void stopChaser();
 
+public:
+    enum NextPrevBehavior
+    {
+        DefaultRunFirst = 0,
+        RunNext,
+        Select,
+        Nothing
+    };
+public:
+    void setNextPrevBehavior(unsigned int nextPrev);
+    unsigned int nextPrevBehavior() const;
+
 private:
     quint32 m_chaserID;
+    unsigned int m_nextPrevBehavior;
     QTreeWidget* m_tree;
     QToolButton* m_crossfadeButton;
     QToolButton* m_playbackButton;
+    QToolButton* m_stopButton;
     QToolButton* m_previousButton;
     QToolButton* m_nextButton;
     QProgressBar* m_progress;
@@ -190,6 +242,19 @@ private:
     /*************************************************************************
      * Crossfade
      *************************************************************************/
+public:
+    enum SlidersMode
+    {
+        Crossfade = 0,
+        Steps
+    };
+
+    SlidersMode slidersMode() const;
+    void setSlidersMode(SlidersMode mode);
+
+    SlidersMode stringToSlidersMode(QString modeStr);
+    QString slidersModeToString(SlidersMode mode);
+
 protected:
     void setSlidersInfo(int index);
 
@@ -197,6 +262,9 @@ protected slots:
     void slotShowCrossfadePanel(bool enable);
     void slotSlider1ValueChanged(int value);
     void slotSlider2ValueChanged(int value);
+
+protected:
+    void stopStepIfNeeded(Chaser* ch);
 
 private:
     QCheckBox *m_linkCheck;
@@ -211,6 +279,7 @@ private:
     QBrush m_defCol;
     int m_primaryIndex, m_secondaryIndex;
     bool m_primaryLeft;
+    SlidersMode m_slidersMode;
 
     /*************************************************************************
      * Key sequences
@@ -228,11 +297,17 @@ public:
     /** Get the keyboard key combination for skipping to the previous cue */
     QKeySequence previousKeySequence() const;
 
-    /** Set the keyboard key combination for stopping the cue list */
+    /** Set the keyboard key combination for playing/resuming the cue list */
     void setPlaybackKeySequence(const QKeySequence& keySequence);
 
-    /** Get the keyboard key combination for stopping the cue list */
+    /** Get the keyboard key combination for playing/resuming the cue list */
     QKeySequence playbackKeySequence() const;
+
+    /** Set the keyboard key combination for stopping the cue list */
+    void setStopKeySequence(const QKeySequence& keySequence);
+
+    /** Get the keyboard key combination for stopping the cue list */
+    QKeySequence stopKeySequence() const;
 
 protected slots:
     void slotKeyPressed(const QKeySequence& keySequence);
@@ -241,6 +316,7 @@ private:
     QKeySequence m_nextKeySequence;
     QKeySequence m_previousKeySequence;
     QKeySequence m_playbackKeySequence;
+    QKeySequence m_stopKeySequence;
 
     /*************************************************************************
      * External Input
@@ -255,6 +331,7 @@ private:
     quint32 m_nextLatestValue;
     quint32 m_previousLatestValue;
     quint32 m_playbackLatestValue;
+    quint32 m_stopLatestValue;
 
     /*************************************************************************
      * VCWidget-inherited
@@ -283,15 +360,18 @@ signals:
     /** Signal to webaccess */
     void stepChanged(int idx);
 
+private:
+    FunctionParent functionParent() const;
+
     /*************************************************************************
      * Load & Save
      *************************************************************************/
 public:
     /** @reimp */
-    bool loadXML(const QDomElement* root);
+    bool loadXML(QXmlStreamReader &root);
 
     /** @reimp */
-    bool saveXML(QDomDocument* doc, QDomElement* vc_root);
+    bool saveXML(QXmlStreamWriter *doc);
 };
 
 /** @} */
