@@ -29,8 +29,6 @@ Rectangle
     width: 400
     height: columnContainer.height + 8
     color: UISettings.bgLight
-    radius: 4
-    border.color: "#444"
 
     property string fxManufacturer
     property string fxModel
@@ -69,10 +67,9 @@ Rectangle
 
         Rectangle
         {
-            height: 24
+            height: UISettings.listItemHeight * 0.8
             width: parent.width
-            color: "#0d235b"
-            radius: 3
+            color: UISettings.sectionHeader
 
             RobotoText
             {
@@ -84,20 +81,24 @@ Rectangle
 
         GridLayout
         {
+            id: propsGrid
             x: 4
             width: parent.width - 8
             columns: 4
             columnSpacing: 5
             rowSpacing: 4
 
+            property real itemsHeight: UISettings.listItemHeight
+            property real itemsFontSize: UISettings.textSizeDefault * 0.75
+
             // row 1
             RobotoText
             {
                 id: fxNameLabel
-                height: 30
+                height: propsGrid.itemsHeight
                 //anchors.verticalCenter: parent.verticalCenter
                 label: qsTr("Name")
-                fontSize: 14
+                fontSize: propsGrid.itemsFontSize
             }
 
             CustomTextEdit
@@ -108,7 +109,7 @@ Rectangle
                 Layout.fillWidth: true
                 onInputTextChanged:
                 {
-                    console.log("Text changed !!")
+                    //console.log("Text changed !!")
                     fxProps.fxName = inputText
                 }
             }
@@ -117,14 +118,14 @@ Rectangle
             RobotoText
             {
                 id: fxUniverseLabel
-                height: 30
+                height: propsGrid.itemsHeight
                 label: qsTr("Universe")
-                fontSize: 14
+                fontSize: propsGrid.itemsFontSize
             }
             CustomComboBox
             {
                 id: fxUniverseCombo
-                height: 30
+                height: propsGrid.itemsHeight
                 Layout.columnSpan: 3
                 Layout.fillWidth: true
                 model: ioManager.universeNames
@@ -134,84 +135,80 @@ Rectangle
             RobotoText
             {
                 id: fxAddressLabel
-                height: 30
+                height: propsGrid.itemsHeight
                 label: qsTr("Address")
-                fontSize: 14
+                fontSize: propsGrid.itemsFontSize
             }
             CustomSpinBox
             {
                 id: fxAddressSpin
                 //width: (parent.width - fxAddress.width - fxQuantity.width) / 2
                 Layout.fillWidth: true
-                minimumValue: 1
-                maximumValue: 512
-                decimals: 0
+                from: 1
+                to: 512
             }
             RobotoText
             {
                 id: fxQuantityLabel
-                height: 30
+                height: propsGrid.itemsHeight
                 label: qsTr("Quantity")
-                fontSize: 14
+                fontSize: propsGrid.itemsFontSize
             }
             CustomSpinBox
             {
                 id: fxQuantitySpin
                 //width: (parent.width - fxAddress.width - fxQuantity.width) / 2
                 Layout.fillWidth: true
-                minimumValue: 1
-                maximumValue: 512
-                decimals: 0
+                from: 1
+                to: 512
             }
 
             // row 4
             RobotoText
             {
                 id: fxModeChLabel
-                height: 30
+                height: propsGrid.itemsHeight
                 label: qsTr("Channels")
-                fontSize: 14
+                fontSize: propsGrid.itemsFontSize
             }
             CustomSpinBox
             {
                 id: fxModeChSpin
                 Layout.fillWidth: true
-                minimumValue: 1
-                maximumValue: 512
-                decimals: 0
+                from: 1
+                to: 512
                 value: fixtureBrowser.modeChannels(fxMode)
             }
             RobotoText
             {
                 id: fxGapLabel
-                height: 30
+                height: propsGrid.itemsHeight
                 label: qsTr("Gap")
-                fontSize: 14
+                fontSize: propsGrid.itemsFontSize
             }
 
             CustomSpinBox
             {
                 id: fxGapSpin
                 Layout.fillWidth: true
-                minimumValue: 0
-                maximumValue: 511
-                decimals: 0
+                from: 0
+                to: 511
             }
 
             // row 5
             RobotoText
             {
                 id: fxModeLabel
-                height: 30
+                height: propsGrid.itemsHeight
                 label: qsTr("Mode")
-                fontSize: 14
+                fontSize: propsGrid.itemsFontSize
             }
 
             Rectangle
             {
                 color: "transparent"
                 Layout.columnSpan: 3
-                height: 30
+                height: propsGrid.itemsHeight
                 Layout.fillWidth: true
 
                 RowLayout
@@ -221,7 +218,7 @@ Rectangle
                     CustomComboBox
                     {
                         id: fxModesCombo
-                        height: 30
+                        height: propsGrid.itemsHeight
                         Layout.fillWidth: true
                         model: fixtureBrowser.modes(fxManufacturer, fxModel)
                         onModelChanged: currentIndex = 0
@@ -230,16 +227,40 @@ Rectangle
                     IconButton
                     {
                         id: fxModeInfo
-                        width: 30
-                        height: 30
+                        width: propsGrid.itemsHeight
+                        height: width
                         imgSource: "qrc:/info.svg"
                         checkable: true
-                        onToggled: {
-
-                        }
                     }
                 }
             }
+        } // end of GridLayout
+
+        Rectangle
+        {
+            visible: fxModeInfo.checked
+            height: UISettings.bigItemHeight * 1.5
+            width: parent.width - 8
+
+            clip: true
+            color: UISettings.bgMedium
+
+            ListView
+            {
+                id: channelList
+                anchors.fill: parent
+                boundsBehavior: Flickable.StopAtBounds
+                model: fixtureBrowser.modeChannelList
+                delegate:
+                    IconTextEntry
+                    {
+                        width: channelList.width
+                        height: UISettings.listItemHeight
+                        tLabel: modelData.mLabel
+                        iSrc: modelData.mIcon
+                    }
+                ScrollBar { flickable: channelList }
+            }
         }
-    }
+    } // end of Column
 }

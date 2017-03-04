@@ -18,28 +18,47 @@
 */
 
 import QtQuick 2.0
-import QtQuick.Controls 1.2
+import QtQuick.Controls 2.0
+import QtQuick.Layouts 1.1
+
+import com.qlcplus.classes 1.0
+import "."
 
 Rectangle
 {
     id: rootBox
-    width: parent.width
-    height: parent.height
+    width: 330
+    height: 370
     color: "#444"
     border.color: "#222"
     border.width: 2
 
+    property int colorsMask: 0
     property color selectedColor
-    property bool hasWhiteChannel: false
-    property bool hasAmberChannel: false
-    property bool hasUVChannel: false
 
-    signal colorChanged(real r, real g, real b, real white, real amber, real uv)
+    property int whiteValue: 0
+    property int amberValue: 0
+    property int uvValue: 0
+
+    property int slHandleSize: UISettings.listItemHeight * 0.8
+
+    signal colorChanged(real r, real g, real b, int w, int a, int uv)
     signal released()
 
-    onSelectedColorChanged:
+    onSelectedColorChanged: emitCurrentColor()
+    onWhiteValueChanged: emitCurrentColor()
+    onAmberValueChanged: emitCurrentColor()
+    onUvValueChanged: emitCurrentColor()
+
+    function emitCurrentColor()
     {
-        colorChanged(selectedColor.r, selectedColor.g, selectedColor.b, 0, 0, 0)
+        colorChanged(selectedColor.r, selectedColor.g, selectedColor.b, whiteValue, amberValue, uvValue)
+    }
+
+    function setHTMLColor(r, g, b)
+    {
+        htmlText.inputText = "#" + ("0" + r.toString(16)).slice(-2) +
+                ("0" + g.toString(16)).slice(-2) + ("0" + b.toString(16)).slice(-2)
     }
 
     Canvas
@@ -49,6 +68,10 @@ Rectangle
         y: 5
         width: 256
         height: 256
+        transformOrigin: Item.TopLeft
+        // try to scale always to a little bit more
+        // than half of the tool width
+        scale: (rootBox.width / 1.75) / 256
 
         function getHTMLColor(r, g, b)
         {
@@ -115,18 +138,17 @@ Rectangle
 
             function setPickedColor(mouse)
             {
-                var ctx = colorBox.getContext('2d');
-                var imgData = ctx.getImageData(mouse.x, mouse.y, 1, 1).data;
-                var r = imgData[0];
-                var g = imgData[1];
-                var b = imgData[2];
-                rSpin.value = r;
-                gSpin.value = g;
-                bSpin.value = b;
-                htmlText.inputText = "#" + ("0" + r.toString(16)).slice(-2) +
-                        ("0" + g.toString(16)).slice(-2) + ("0" + b.toString(16)).slice(-2);
+                var ctx = colorBox.getContext('2d')
+                var imgData = ctx.getImageData(mouse.x, mouse.y, 1, 1).data
+                var r = imgData[0]
+                var g = imgData[1]
+                var b = imgData[2]
+                rSpin.value = r
+                gSpin.value = g
+                bSpin.value = b
+                setHTMLColor(r, g, b)
 
-                selectedColor = Qt.rgba(r / 256, g / 256, b / 256, 1.0);
+                selectedColor = Qt.rgba(r / 256, g / 256, b / 256, 1.0)
             }
 
             onPressed: setPickedColor(mouse)
@@ -135,79 +157,225 @@ Rectangle
         }
     }
 
-    Column
+    Grid
     {
         id: tColumn
-        x: colorBox.width + 10
+        x: colorBox.x + (colorBox.width * colorBox.scale) + 5
         y: 5
-        height: 256
+        columns: 2
+        columnSpacing: 5
 
-        RobotoText { height: 40; fontSize: 12; label: qsTr("Red"); }
-        RobotoText { height: 40; fontSize: 12; label: qsTr("Green"); }
-        RobotoText { height: 40; fontSize: 12; label: qsTr("Blue"); }
-        RobotoText { height: 40; fontSize: 12; label: "HTML"; }
-    }
-
-    Rectangle
-    {
-        x: rootBox.width - 80
-        y: 5
-        height: 256
-        width: 75
-        color: "transparent"
+        RobotoText
+        {
+            height: UISettings.listItemHeight
+            label: qsTr("Red")
+        }
 
         CustomSpinBox
         {
             id: rSpin
-            width: 75
-            height: 38
-            minimumValue: 0
-            maximumValue: 255
-            decimals: 0
+            width: UISettings.bigItemHeight * 0.7
+            height: UISettings.listItemHeight
+            from: 0
+            to: 255
+            onValueChanged:
+            {
+                selectedColor = Qt.rgba(rSpin.value / 256, gSpin.value / 256, bSpin.value / 256, 1.0)
+                setHTMLColor(rSpin.value, gSpin.value, bSpin.value)
+            }
         }
+
+        RobotoText
+        {
+            height: UISettings.listItemHeight
+            label: qsTr("Green")
+        }
+
         CustomSpinBox
         {
             id: gSpin
-            y: 40
-            width: 75
-            height: 38
-            minimumValue: 0
-            maximumValue: 255
-            decimals: 0;
+            width: UISettings.bigItemHeight * 0.7
+            height: UISettings.listItemHeight
+            from: 0
+            to: 255
+            onValueChanged:
+            {
+                selectedColor = Qt.rgba(rSpin.value / 256, gSpin.value / 256, bSpin.value / 256, 1.0)
+                setHTMLColor(rSpin.value, gSpin.value, bSpin.value)
+            }
         }
+
+        RobotoText
+        {
+            height: UISettings.listItemHeight
+            label: qsTr("Blue")
+        }
+
         CustomSpinBox
         {
             id: bSpin
-            y: 80
-            width: 75
-            height: 38
-            minimumValue: 0
-            maximumValue: 255
-            decimals: 0;
+            width: UISettings.bigItemHeight * 0.7
+            height: UISettings.listItemHeight
+            from: 0
+            to: 255
+            onValueChanged:
+            {
+                selectedColor = Qt.rgba(rSpin.value / 256, gSpin.value / 256, bSpin.value / 256, 1.0)
+                setHTMLColor(rSpin.value, gSpin.value, bSpin.value)
+            }
         }
+
+        RobotoText
+        {
+            height: UISettings.listItemHeight
+            label: "HTML"
+        }
+
         CustomTextEdit
         {
             id: htmlText
-            y: 120
-            width: 75
-            height: 38
+            width: UISettings.bigItemHeight * 0.7
+            height: UISettings.listItemHeight
         }
     }
 
+    GridLayout
+    {
+        x: 5
+        width: parent.width - 10
+        y: colorBox.y + (colorBox.height * colorBox.scale)
+        columns: 3
+        columnSpacing: 5
+
+        RobotoText
+        {
+            visible: colorsMask & App.White
+            height: UISettings.listItemHeight
+            label: qsTr("White");
+        }
+
+        Slider
+        {
+            id: wSlider
+            visible: colorsMask & App.White
+            Layout.fillWidth: true
+            orientation: Qt.Horizontal
+            from: 0
+            to: 255
+            value: whiteValue
+            handle: Rectangle {
+                x: wSlider.leftPadding + wSlider.visualPosition * (wSlider.availableWidth - width)
+                y: wSlider.topPadding + wSlider.availableHeight / 2 - height / 2
+                implicitWidth: slHandleSize
+                implicitHeight: slHandleSize
+                radius: slHandleSize / 5
+            }
+
+            onPositionChanged: whiteValue = valueAt(position)
+        }
+
+        CustomSpinBox
+        {
+            visible: colorsMask & App.White
+            width: UISettings.bigItemHeight * 0.7
+            height: UISettings.listItemHeight
+            from: 0
+            to: 255
+            value: whiteValue
+            onValueChanged: whiteValue = value
+        }
+
+        RobotoText
+        {
+            visible: colorsMask & App.Amber
+            height: UISettings.listItemHeight
+            label: qsTr("Amber");
+        }
+
+        Slider
+        {
+            id: aSlider
+            visible: colorsMask & App.Amber
+            Layout.fillWidth: true
+            orientation: Qt.Horizontal
+            from: 0
+            to: 255
+            value: amberValue
+            handle: Rectangle {
+                x: aSlider.leftPadding + aSlider.visualPosition * (aSlider.availableWidth - width)
+                y: aSlider.topPadding + aSlider.availableHeight / 2 - height / 2
+                implicitWidth: slHandleSize
+                implicitHeight: slHandleSize
+                radius: slHandleSize / 5
+            }
+
+            onPositionChanged: amberValue = valueAt(position)
+        }
+
+        CustomSpinBox
+        {
+            visible: colorsMask & App.Amber
+            width: UISettings.bigItemHeight * 0.7
+            height: UISettings.listItemHeight
+            from: 0
+            to: 255
+            value: amberValue
+            onValueChanged: amberValue = value
+        }
+
+        RobotoText
+        {
+            visible: colorsMask & App.UV
+            height: UISettings.listItemHeight
+            label: qsTr("UV");
+        }
+
+        Slider
+        {
+            id: uvSlider
+            visible: colorsMask & App.UV
+            Layout.fillWidth: true
+            orientation: Qt.Horizontal
+            from: 0
+            to: 255
+            value: uvValue
+            handle: Rectangle {
+                x: uvSlider.leftPadding + uvSlider.visualPosition * (uvSlider.availableWidth - width)
+                y: uvSlider.topPadding + uvSlider.availableHeight / 2 - height / 2
+                implicitWidth: slHandleSize
+                implicitHeight: slHandleSize
+                radius: slHandleSize / 5
+            }
+
+            onPositionChanged: uvValue = valueAt(position)
+        }
+
+        CustomSpinBox
+        {
+            visible: colorsMask & App.UV
+            width: UISettings.bigItemHeight * 0.7
+            height: UISettings.listItemHeight
+            from: 0
+            to: 255
+            value: uvValue
+            onValueChanged: uvValue = value
+        }
+    }
 
     Row
     {
         x: 5
-        y: 350
+        y: rootBox.height - UISettings.listItemHeight - 10
         spacing: 20
         RobotoText
         {
+            height: UISettings.listItemHeight
             label: qsTr("Selected color");
         }
         Rectangle
         {
-            width: 70
-            height: 40
+            width: UISettings.mediumItemHeight
+            height: UISettings.listItemHeight
             color: selectedColor
         }
     }

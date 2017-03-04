@@ -306,7 +306,6 @@ void VCSpeedDial::slotDialValueChanged()
     else
         slotMultDivChanged();
 
-    updateFeedback();
     m_updateTimer->start(UPDATE_TIMEOUT);
 }
 
@@ -333,11 +332,10 @@ void VCSpeedDial::slotUpdate()
         QWidget* widget = it.key();
         VCSpeedDialPreset* preset = it.value();
 
-        {
-            QPushButton* button = reinterpret_cast<QPushButton*>(widget);
-            button->setDown(preset->m_value == currentValue);
-        }
+        QPushButton* button = reinterpret_cast<QPushButton*>(widget);
+        button->setDown(preset->m_value == currentValue);
     }
+    updateFeedback();
 }
 
 /*********************************************************************
@@ -559,21 +557,20 @@ void VCSpeedDial::updateFeedback()
         VCSpeedDialPreset* preset = it.value();
         if (preset->m_inputSource != NULL)
         {
-            {
-                QPushButton* button = reinterpret_cast<QPushButton*>(it.key());
-                if (preset->m_inputSource.isNull() == false)
-                    sendFeedback(button->isDown() ?
-                                 preset->m_inputSource->upperValue() :
-                                 preset->m_inputSource->lowerValue(),
-                                 preset->m_inputSource);
-            }
+            QPushButton* button = reinterpret_cast<QPushButton*>(it.key());
+            if (preset->m_inputSource.isNull() == false)
+                sendFeedback(button->isDown() ?
+                             preset->m_inputSource->upperValue() :
+                             preset->m_inputSource->lowerValue(),
+                             preset->m_inputSource);
         }
     }
 }
 
 void VCSpeedDial::slotInputValueChanged(quint32 universe, quint32 channel, uchar value)
 {
-    if (isEnabled() == false)
+    /* Don't let input data through in design mode or if disabled */
+    if (acceptsInput() == false)
         return;
 
     quint32 pagedCh = (page() << 16) | channel;
@@ -685,7 +682,7 @@ QKeySequence VCSpeedDial::applyKeySequence() const
 
 void VCSpeedDial::slotKeyPressed(const QKeySequence& keySequence)
 {
-    if (isEnabled() == false)
+    if (acceptsInput() == false)
         return;
 
     if (m_tapKeySequence == keySequence)

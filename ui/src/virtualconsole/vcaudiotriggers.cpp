@@ -317,7 +317,7 @@ QKeySequence VCAudioTriggers::keySequence() const
 
 void VCAudioTriggers::slotKeyPressed(const QKeySequence& keySequence)
 {
-    if (isEnabled() == false)
+    if (acceptsInput() == false)
         return;
 
     if (m_keySequence == keySequence)
@@ -331,7 +331,8 @@ void VCAudioTriggers::slotKeyPressed(const QKeySequence& keySequence)
 
 void VCAudioTriggers::slotInputValueChanged(quint32 universe, quint32 channel, uchar value)
 {
-    if (isEnabled() == false)
+    /* Don't let input data through in design mode or if disabled */
+    if (acceptsInput() == false)
         return;
 
     if (checkInputSource(universe, (page() << 16) | channel, value, sender()) && value > 0)
@@ -415,7 +416,7 @@ void VCAudioTriggers::slotModeChanged(Doc::Mode mode)
         {
             if (bar->m_type == AudioBar::DMXBar)
             {
-                m_doc->masterTimer()->registerDMXSource(this, "AudioTriggers");
+                m_doc->masterTimer()->registerDMXSource(this);
                 break;
             }
         }

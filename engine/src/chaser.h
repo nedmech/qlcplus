@@ -57,9 +57,11 @@ class Chaser : public Function
      * Initialization
      *********************************************************************/
 public:
-    Chaser();
     Chaser(Doc* doc);
     virtual ~Chaser();
+
+    /** @reimp */
+    QIcon getIcon() const;
 
 private:
     quint32 m_legacyHoldBus;
@@ -68,7 +70,7 @@ private:
      * Copying
      *********************************************************************/
 public:
-    /** @reimpl */
+    /** @reimp */
     Function* createCopy(Doc* doc, bool addToDoc = true);
 
     /** Copy the contents for this function from another function */
@@ -122,11 +124,6 @@ public:
      * @return true if successful, otherwise false (index out of bounds or dest == source)
      */
     bool moveStep(int sourceIdx, int destIdx);
-
-    /**
-     * Clear the chaser's list of steps
-     */
-    void clear();
 
     /** Get the Chaser steps number */
     int stepsCount();
@@ -265,10 +262,10 @@ private:
      * Save & Load
      *********************************************************************/
 public:
-    /** Save this function to an XML document */
+    /** @reimpl */
     bool saveXML(QXmlStreamWriter *doc);
 
-    /** Load this function contents from an XML document */
+    /** @reimpl */
     bool loadXML(QXmlStreamReader &root);
 
     /** @reimp */
@@ -279,9 +276,6 @@ public:
      * ChaserRunner wrappers
      *********************************************************************/
 public:
-    /** Set the intensity at start */
-    void setStartIntensity(qreal startIntensity);
-
     /** @reimpl */
     void tap();
 
@@ -312,8 +306,18 @@ public:
     /** Get the first step of the running list. If none is running this returns NULL */
     ChaserRunnerStep currentRunningStep() const;
 
+    enum FadeControlMode
+    {
+        FromFunction = 0,
+        Crossfade,
+        BlendedCrossfade
+    };
+
+    /** Set the intensity at start */
+    void setStartIntensity(qreal startIntensity);
+
     /** Adjust the intensities of chaser steps. */
-    void adjustIntensity(qreal fraction, int stepIndex = -1);
+    void adjustIntensity(qreal fraction, int stepIndex = -1, FadeControlMode fadeControl = FromFunction);
 
 private:
     /** Step index at chaser start */

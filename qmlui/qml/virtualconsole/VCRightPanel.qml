@@ -19,11 +19,15 @@
 
 import QtQuick 2.0
 import QtQuick.Controls 1.0
+
+import com.qlcplus.classes 1.0
 import "."
 
 SidePanel
 {
     id: vcRightPanel
+
+    onContentLoaded: if (item.functionID) item.functionID = itemID
 
     Rectangle
     {
@@ -67,20 +71,22 @@ SidePanel
                 imgSource: "qrc:/edit.svg"
                 checkable: true
                 exclusiveGroup: vcButtonsGroup
-                //checked: virtualConsole.resizeMode
                 tooltip: qsTr("Enable/Disable the widgets edit mode")
-                onToggled:
+
+                onCheckedChanged:
                 {
                     virtualConsole.editMode = checked
                     if (checked == true)
                         loaderSource = "qrc:/VCWidgetProperties.qml"
+                    else
+                        border.color = "#1D1D1D"
                     animatePanel(checked)
                 }
 
-                SequentialAnimation on color
+                SequentialAnimation on border.color
                 {
-                    PropertyAnimation { to: "orange"; duration: 500 }
-                    PropertyAnimation { to: UISettings.highlight; duration: 500 }
+                    PropertyAnimation { to: "red"; duration: 1000 }
+                    PropertyAnimation { to: "white"; duration: 1000 }
                     running: editModeButton.checked
                     loops: Animation.Infinite
                 }
@@ -100,6 +106,27 @@ SidePanel
                     if (checked == true)
                         loaderSource = "qrc:/FunctionManager.qml"
                     animatePanel(checked);
+                }
+            }
+
+            IconButton
+            {
+                id: removeButton
+                z: 2
+                width: iconSize
+                height: iconSize
+                imgSource: "qrc:/remove.svg"
+                tooltip: qsTr("Remove the selected widgets")
+                counter: virtualConsole.selectedWidgetsCount
+                onClicked:
+                {
+                    var selNames = virtualConsole.selectedWidgetNames()
+                    console.log(selNames)
+
+                    actionManager.requestActionPopup(ActionManager.DeleteVCWidgets,
+                                                     qsTr("Are you sure you want to remove the following widgets ?\n" + selNames),
+                                                     ActionManager.OK | ActionManager.Cancel,
+                                                     virtualConsole.selectedWidgetIDs())
                 }
             }
         }

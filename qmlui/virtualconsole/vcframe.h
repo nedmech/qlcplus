@@ -30,6 +30,7 @@
 #define KXMLQLCVCFrameIsDisabled    "Disabled"
 #define KXMLQLCVCFrameEnableSource  "Enable"
 #define KXMLQLCVCFrameShowEnableButton "ShowEnableButton"
+#define KXMLQLCVCFrameSignature     "Signature"
 
 #define KXMLQLCVCFrameMultipage   "Multipage"
 #define KXMLQLCVCFramePagesNumber "PagesNum"
@@ -59,23 +60,18 @@ public:
     VCFrame(Doc* doc = NULL, VirtualConsole *vc = NULL, QObject *parent = 0);
     virtual ~VCFrame();
 
+    /** @reimp */
+    virtual QString defaultCaption();
+
+    /** @reimp */
     virtual void render(QQuickView *view, QQuickItem *parent);
 
-    /** Method used to indicate if this Frame has a SoloFrame parent
-     *  at any lower level. This is used to determine if
-     *  children widget should be connected to handle the Solo Frame
-     *  feature */
-    void setHasSoloParent(bool hasSoloParent);
-
-    /** Returns if this Frame has a Solo Frame parent at any lower level */
-    bool hasSoloParent() const;
+    /** @reimp */
+    QString propertiesResource() const;
 
 protected:
     /** Reference to the Virtual Console, used to add new widgets */
     VirtualConsole *m_vc;
-
-    /** Flag that holds if this frame has a Solo parent widget */
-    bool m_hasSoloParent;
 
     /*********************************************************************
      * Children
@@ -84,16 +80,38 @@ public:
     /** Returns if this frame has chidren widgets */
     bool hasChildren();
 
+    /** Returns a list of the children widgets with the specified
+     *  $recursive method */
     QList<VCWidget *>children(bool recursive = false);
 
+    /** Add a new widget of type $wType at position $pos to this frame.
+     *  $parent is used only to render the new widget */
     Q_INVOKABLE void addWidget(QQuickItem *parent, QString wType, QPoint pos);
-    Q_INVOKABLE void addFunction(QQuickItem *parent, quint32 funcID, QPoint pos, bool modifierPressed);
 
+    /** Add a Function with ID $funcID at position $pos to this frame.
+     *  If $modifierPressed is false, a VC Button is created to represent the Function
+     *  otherwise a VC Slider is created.
+     *  $parent is used only to render the new widget */
+    Q_INVOKABLE void addFunctions(QQuickItem *parent, QVariantList idsList, QPoint pos, int keyModifiers);
+
+    /** Delete all the frame children */
     void deleteChildren();
+
+    /** Add a child widget to the frame page map */
+    virtual void addWidgetToPageMap(VCWidget *widget);
+
+    /** Remove the child $widget from the frame page map */
+    virtual void removeWidgetFromPageMap(VCWidget *widget);
 
 protected:
     void setupWidget(VCWidget *widget);
-    void deleteWidget(VCWidget *widget);
+
+    /*********************************************************************
+     * Disable state
+     *********************************************************************/
+public:
+    /** @reimp */
+    void setDisabled(bool disable);
 
     /*********************************************************************
      * Header
@@ -174,8 +192,8 @@ protected:
     /** Flag to cycle through pages when reaching the end */
     bool m_pagesLoop;
 
-    /** Here's where the magic takes place. This holds a map
-     *  of pages/widgets to be shown/hidden when page is changed */
+    /** This holds a map of pages/widgets to be
+     *  shown/hidden when page is changed */
     QMap <VCWidget *, int> m_pagesMap;
 
     /*********************************************************************
@@ -183,6 +201,13 @@ protected:
      *********************************************************************/
 protected slots:
     virtual void slotFunctionStarting(VCWidget *widget, quint32 fid, qreal fIntensity = 1.0);
+
+    /*********************************************************************
+     * External input
+     *********************************************************************/
+public slots:
+    /** @reimp */
+    void slotInputValueChanged(quint8 id, uchar value);
 
     /*********************************************************************
      * Load & Save

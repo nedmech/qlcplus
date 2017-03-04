@@ -51,6 +51,7 @@ VCSliderProperties::VCSliderProperties(VCSlider* slider, Doc* doc)
     Q_ASSERT(doc != NULL);
     Q_ASSERT(slider != NULL);
     m_slider = slider;
+    m_ovrResetSelWidget = NULL;
 
     setupUi(this);
 
@@ -144,7 +145,7 @@ VCSliderProperties::VCSliderProperties(VCSlider* slider, Doc* doc)
 
     m_inputSelWidget = new InputSelectionWidget(m_doc, this);
     m_inputSelWidget->setKeyInputVisibility(false);
-    m_inputSelWidget->setInputSource(m_slider->inputSource());
+    m_inputSelWidget->setInputSource(m_slider->inputSource(VCSlider::sliderInputSourceId));
     m_inputSelWidget->setWidgetPage(m_slider->page());
     m_inputSelWidget->show();
     m_extControlLayout->addWidget(m_inputSelWidget);
@@ -165,7 +166,21 @@ VCSliderProperties::VCSliderProperties(VCSlider* slider, Doc* doc)
             this, SLOT(slotItemExpanded()));
     connect(m_levelList, SIGNAL(collapsed(QModelIndex)),
             this, SLOT(slotItemExpanded()));
+    connect(m_monitorValuesCheck, SIGNAL(clicked(bool)),
+            this, SLOT(slotMonitorCheckClicked(bool)));
 
+    m_ovrResetSelWidget = new InputSelectionWidget(m_doc, this);
+    m_ovrResetSelWidget->setTitle(tr("Override reset control"));
+    m_ovrResetSelWidget->setCustomFeedbackVisibility(true);
+    m_ovrResetSelWidget->setKeySequence(m_slider->overrideResetKeySequence());
+    m_ovrResetSelWidget->setInputSource(m_slider->inputSource(VCSlider::overrideResetInputSourceId));
+    m_ovrResetSelWidget->setWidgetPage(m_slider->page());
+    m_monitorResetControl->addWidget(m_ovrResetSelWidget);
+
+    if (m_sliderMode == VCSlider::Level && m_slider->channelsMonitorEnabled())
+        m_ovrResetSelWidget->show();
+    else
+        m_ovrResetSelWidget->hide();
     m_monitorValuesCheck->setChecked(m_slider->channelsMonitorEnabled());
 
     /*********************************************************************
@@ -179,6 +194,8 @@ VCSliderProperties::VCSliderProperties(VCSlider* slider, Doc* doc)
 
 VCSliderProperties::~VCSliderProperties()
 {
+    delete m_inputSelWidget;
+    delete m_ovrResetSelWidget;
 }
 
 /*****************************************************************************
@@ -207,6 +224,8 @@ void VCSliderProperties::slotModeLevelClicked()
         case ClickAndGoWidget::Amber:
         case ClickAndGoWidget::White:
         case ClickAndGoWidget::UV:
+        case ClickAndGoWidget::Lime:
+        case ClickAndGoWidget::Indigo:
             m_cngColorCheck->setChecked(true);
         break;
         case ClickAndGoWidget::RGB:
@@ -256,16 +275,18 @@ void VCSliderProperties::setLevelPageVisibility(bool visible)
     m_levelByGroupButton->setVisible(visible);
     m_clickngoGroup->setVisible(visible);
     m_monitorValuesCheck->setVisible(visible);
+    if (m_monitorValuesCheck->isChecked() && m_ovrResetSelWidget != NULL)
+        m_ovrResetSelWidget->setVisible(visible);
 
     if (visible == true)
     {
         m_switchToLevelModeButton->hide();
-        m_levelSpacer->changeSize(0, 0, QSizePolicy::Fixed, QSizePolicy::Expanding);
+        //m_levelSpacer->changeSize(0, 0, QSizePolicy::Fixed, QSizePolicy::Expanding);
     }
     else
     {
         m_switchToLevelModeButton->show();
-        m_levelSpacer->changeSize(0, 0, QSizePolicy::Fixed, QSizePolicy::Fixed);
+        //m_levelSpacer->changeSize(0, 0, QSizePolicy::Fixed, QSizePolicy::Fixed);
     }
 }
 
@@ -640,6 +661,14 @@ void VCSliderProperties::slotItemExpanded()
     m_levelList->header()->resizeSections(QHeaderView::ResizeToContents);
 }
 
+void VCSliderProperties::slotMonitorCheckClicked(bool checked)
+{
+    if (checked == true)
+        m_ovrResetSelWidget->show();
+    else
+        m_ovrResetSelWidget->hide();
+}
+
 /*****************************************************************************
  * Playback page
  *****************************************************************************/
@@ -704,7 +733,7 @@ void VCSliderProperties::checkMajorColor(int *comp, int *max, int type)
 void VCSliderProperties::storeLevelChannels()
 {
     int red = 0, green = 0, blue = 0;
-    int cyan = 0, magenta = 0, yellow = 0, amber = 0, white = 0, uv = 0;
+    int cyan = 0, magenta = 0, yellow = 0, amber = 0, white = 0, uv = 0, lime = 0, indigo = 0;
     int majorColor = 0;
     /* Clear all channels from the slider first */
     m_slider->clearLevelChannels();
@@ -777,6 +806,16 @@ void VCSliderProperties::storeLevelChannels()
                             uv++;
                             checkMajorColor(&uv, &majorColor, ClickAndGoWidget::UV);
                         }
+                        else if (ch->colour() == QLCChannel::Lime)
+                        {
+                            lime++;
+                            checkMajorColor(&lime, &majorColor, ClickAndGoWidget::Lime);
+                        }
+                        else if (ch->colour() == QLCChannel::Indigo)
+                        {
+                            indigo++;
+                            checkMajorColor(&indigo, &majorColor, ClickAndGoWidget::Indigo);
+                        }
                     }
                 }
                 m_slider->addLevelChannel(fxi_id, ch_num);
@@ -833,7 +872,11 @@ void VCSliderProperties::accept()
     }
 
     if (m_slider->sliderMode() == VCSlider::Level)
+    {
         m_slider->setChannelsMonitorEnabled(m_monitorValuesCheck->isChecked());
+        m_slider->setOverrideResetKeySequence(m_ovrResetSelWidget->keySequence());
+        m_slider->setInputSource(m_ovrResetSelWidget->inputSource(), VCSlider::overrideResetInputSourceId);
+    }
 
     m_slider->setCaption(m_nameEdit->text());
 
@@ -850,7 +893,7 @@ void VCSliderProperties::accept()
         m_slider->setInvertedAppearance(true);
 
     /* External input */
-    m_slider->setInputSource(m_inputSelWidget->inputSource());
+    m_slider->setInputSource(m_inputSelWidget->inputSource(), VCSlider::sliderInputSourceId);
 
     /* Close dialog */
     QDialog::accept();

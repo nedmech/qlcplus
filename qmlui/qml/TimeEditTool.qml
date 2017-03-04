@@ -20,6 +20,7 @@
 import QtQuick 2.0
 import QtQuick.Layouts 1.0
 
+import com.qlcplus.classes 1.0
 import "TimeUtils.js" as TimeUtils
 
 import "."
@@ -27,43 +28,93 @@ import "."
 GridLayout
 {
     id: toolRoot
-    property color buttonsBgColor: "#05438E"
-    property int btnFontSize: 12
-    property string title
-    property string timeValueString
-
-    property int msTime: 0
-    property bool msTimeCalcNeeded: true
-
     columns: 5
     rows: 4
     columnSpacing: 0
     rowSpacing: 0
 
-    signal timeValueChanged(int ms)
+    property color buttonsBgColor: "#05438E"
+    property int btnFontSize: UISettings.textSizeDefault
+    property string title
+    property string timeValueString
 
-    onVisibleChanged: if (visible) timeBox.selectAndFocus()
+    property int timeValue: 0
 
-    onTimeValueStringChanged:
+    /* The TAP time counter */
+    property double tapTimeValue: 0
+
+    /* If needed, this property can be used to recognize which type
+       of speed value is being edited */
+    property int speedType
+
+    /* The type of the tempo being edited. Can be Time or Beats */
+    property int tempoType: Function.Time
+    property int allowFractions: Function.NoFractions
+    property int currentFraction: 0
+
+    /* If needed, this can be the reference index of an item in a list */
+    property int indexInList
+
+    signal valueChanged(int val)
+    signal tabPressed(bool forward)
+    signal closed()
+
+    function show(tX, tY, tTitle, tStrValue, tType)
     {
-        if (msTimeCalcNeeded == true)
-            msTime = TimeUtils.qlcStringToMs(timeValueString)
-        //console.log("Time value ms: " + msTime)
-        msTimeCalcNeeded = false
+        tapTimeValue = 0
+        tapTimer.stop()
+        title = tTitle
+        speedType = tType
+        timeValueString = tStrValue
+        timeValue = TimeUtils.qlcStringToTime(timeValueString, tempoType)
+        if (allowFractions !== Function.NoFractions)
+            currentFraction = (timeValue % 1000)
+
+        if (tX >= 0)
+            x = tX
+        if (tY >= 0)
+            y = tY
+
+        visible = true
+        timeBox.selectAndFocus()
     }
 
-    onMsTimeChanged:
+    function updateTime(value, string)
     {
-        //console.log("ms time: " + msTime)
-        msTimeCalcNeeded = false
-        timeValueString = TimeUtils.msToQlcString(msTime)
-        toolRoot.timeValueChanged(msTime)
+        if (value !== -1 && value !== timeValue)
+        {
+            timeValue = value
+            timeValueString = TimeUtils.timeToQlcString(timeValue, tempoType)
+            toolRoot.valueChanged(timeValue)
+        }
+        if (string !== "" && string !== timeValueString)
+        {
+            timeValue = TimeUtils.qlcStringToTime(string, tempoType)
+            timeValueString = TimeUtils.timeToQlcString(timeValue, tempoType)
+            toolRoot.valueChanged(timeValue)
+        }
     }
 
-    // title bar
+    Timer
+    {
+        id: tapTimer
+        repeat: true
+        running: false
+        interval: 500
+
+        onTriggered:
+        {
+            if (tapButton.border.color == UISettings.bgMedium)
+                tapButton.border.color = "#00FF00"
+            else
+                tapButton.border.color = UISettings.bgMedium
+        }
+    }
+
+    // title bar + close button
     Rectangle
     {
-        height: 35
+        height: UISettings.iconSizeDefault
         Layout.fillWidth: true
         Layout.columnSpan: 5
         gradient:
@@ -80,7 +131,7 @@ GridLayout
             anchors.margins: 3
 
             label: title
-            fontSize: 14
+            fontSize: UISettings.textSizeDefault * 0.75
         }
         // allow the tool to be dragged around
         // by holding it on the title bar
@@ -91,204 +142,290 @@ GridLayout
         }
         GenericButton
         {
-            width: 35
-            height: 35
+            width: height
+            height: parent.height
             anchors.right: parent.right
-            border.width: 1
-            border.color: "#333"
+            border.color: UISettings.bgMedium
             //bgColor: buttonsBgColor
             useFontawesome: true
             label: FontAwesome.fa_times
 
-            onClicked: toolRoot.visible = false
+            onClicked:
+            {
+                tapTimer.stop()
+                toolRoot.visible = false
+                toolRoot.closed()
+            }
         }
     }
 
-    // top row: close, increase values
+    // top row: tap, increase values
     GenericButton
     {
-        width: 35
+        id: tapButton
+        width: UISettings.iconSizeDefault
         Layout.fillHeight: true
         Layout.rowSpan: 2
-        border.width: 1
-        border.color: "#333"
         bgColor: buttonsBgColor
         fontSize: btnFontSize
-        label: "Tap"
-    }
+        label: qsTr("Tap")
 
-    GenericButton
-    {
-        width: 35
-        height: 35
-        border.width: 1
-        border.color: "#333"
-        bgColor: buttonsBgColor
-        fontSize: btnFontSize
-        label: "+H"
-        repetition: true
         onClicked:
         {
-            msTime += (60 * 60 * 1000)
+            /* right click resets the current TAP time */
+            if (mouseButton === Qt.RightButton)
+            {
+                tapTimer.stop()
+                tapButton.border.color = UISettings.bgMedium
+                tapTimeValue = 0
+            }
+            else
+            {
+                var currTime = new Date().getTime()
+                if (tapTimeValue != 0)
+                {
+                    updateTime(currTime - tapTimeValue, "")
+                    tapTimer.interval = timeValue
+                    tapTimer.restart()
+                }
+                tapTimeValue = currTime
+            }
         }
     }
 
     GenericButton
     {
-        width: 35
-        height: 35
-        border.width: 1
-        border.color: "#333"
+        visible: tempoType === Function.Time
+        width: height
+        height: UISettings.iconSizeDefault
+        border.color: UISettings.bgMedium
         bgColor: buttonsBgColor
         fontSize: btnFontSize
         label: "+M"
         repetition: true
-        onClicked:
-        {
-            msTime += (60 * 1000)
-        }
+        onClicked: updateTime(timeValue + (60 * 1000), "")
     }
 
     GenericButton
     {
-        width: 40
-        height: 35
-        border.width: 1
-        border.color: "#333"
+        visible: tempoType === Function.Time
+        width: height * 1.2
+        height: UISettings.iconSizeDefault
+        border.color: UISettings.bgMedium
         bgColor: buttonsBgColor
         fontSize: btnFontSize
         label: "+S"
         repetition: true
-        onClicked:
-        {
-            msTime += 1000
-        }
+        onClicked: updateTime(timeValue + 1000, "")
     }
 
     GenericButton
     {
-        width: 40
-        height: 35
-        border.width: 1
-        border.color: "#333"
+        visible: tempoType === Function.Time
+        width: height * 1.2
+        height: UISettings.iconSizeDefault
+        border.color: UISettings.bgMedium
         bgColor: buttonsBgColor
         fontSize: btnFontSize
         label: "+ms"
         repetition: true
+        onClicked: updateTime(timeValue + 1, "")
+    }
+
+    GenericButton
+    {
+        visible: tempoType === Function.Beats
+        height: UISettings.iconSizeDefault
+        Layout.fillWidth: true
+        Layout.columnSpan: allowFractions !== Function.NoFractions ? 2 : 4
+        border.color: UISettings.bgMedium
+        bgColor: buttonsBgColor
+        fontSize: btnFontSize
+        label: "+"
+        repetition: true
+        onClicked: updateTime(timeValue + 1000, "")
+    }
+
+    GenericButton
+    {
+        visible: tempoType === Function.Beats && allowFractions !== Function.NoFractions
+        height: UISettings.iconSizeDefault
+        Layout.fillWidth: true
+        Layout.columnSpan: 2
+        border.color: UISettings.bgMedium
+        bgColor: buttonsBgColor
+        fontSize: btnFontSize
+        label: allowFractions === Function.AllFractions ? "+1/8" : "+2x"
+        repetition: true
         onClicked:
         {
-            msTime++
+            if (allowFractions === Function.AllFractions)
+                updateTime(timeValue + 125, "")
+            else
+            {
+                var tmpTime = timeValue
+                var newfraction = 0
+                if (currentFraction == 0)
+                    newfraction = 125
+                else if (currentFraction != 500)
+                    newfraction = currentFraction * 2
+
+                if (newfraction == 0)
+                    tmpTime += 1000
+
+                updateTime(tmpTime - currentFraction + newfraction, "")
+                currentFraction = newfraction
+            }
         }
     }
 
     // middle row: tap, time value
     Rectangle
     {
-        height: 35
+        height: UISettings.iconSizeDefault
         color: "#444"
-        border.width: 1
-        border.color: "#333"
+        border.color: UISettings.bgMedium
         Layout.fillWidth: true
         Layout.columnSpan: 4
 
         CustomTextEdit
         {
             id: timeBox
-            width: parent.width
-            height: 35
+            anchors.fill: parent
             //anchors.fill: parent
             textAlignment: TextInput.AlignHCenter
             radius: 0
             inputText: timeValueString
             fontSize: btnFontSize
+
+            onEnterPressed: updateTime(-1, inputText)
+            Keys.onTabPressed: toolRoot.tabPressed(true)
+            Keys.onBacktabPressed: toolRoot.tabPressed(false)
+            onEscapePressed:
+            {
+                tapTimer.stop()
+                toolRoot.visible = false
+                toolRoot.closed()
+            }
         }
     }
 
     // bottom row: infinite, decrease values
     GenericButton
     {
-        width: 35
-        height: 35
-        border.width: 1
-        border.color: "#333"
+        width: height
+        height: UISettings.iconSizeDefault
+        border.color: UISettings.bgMedium
         bgColor: buttonsBgColor
         fontSize: btnFontSize
         label: "∞"
-        onClicked:
-        {
-            timeValueString = "∞"
-        }
+        onClicked: updateTime(-2, "")
     }
 
     GenericButton
     {
-        width: 35
-        height: 35
-        border.width: 1
-        border.color: "#333"
-        bgColor: buttonsBgColor
-        fontSize: btnFontSize
-        label: "-H"
-        repetition: true
-        onClicked:
-        {
-            if (msTime < 60 * 60 * 1000)
-                return
-            msTime -= (60 * 60 * 1000)
-        }
-    }
-
-    GenericButton
-    {
-        width: 35
-        height: 35
-        border.width: 1
-        border.color: "#333"
+        visible: tempoType === Function.Time
+        width: height
+        height: UISettings.iconSizeDefault
+        border.color: UISettings.bgMedium
         bgColor: buttonsBgColor
         fontSize: btnFontSize
         label: "-M"
         repetition: true
         onClicked:
         {
-            if (msTime < 60000)
+            if (timeValue < 60000)
                 return
-            msTime -= (60 * 1000)
+            updateTime(timeValue - (60 * 1000), "")
         }
     }
 
     GenericButton
     {
-        width: 40
-        height: 35
-        border.width: 1
-        border.color: "#333"
+        visible: tempoType === Function.Time
+        width: height * 1.2
+        height: UISettings.iconSizeDefault
+        border.color: UISettings.bgMedium
         bgColor: buttonsBgColor
         fontSize: btnFontSize
         label: "-S"
         repetition: true
         onClicked:
         {
-            if (msTime < 1000)
+            if (timeValue < 1000)
                 return
-            msTime -= 1000
+            updateTime(timeValue - 1000, "")
         }
     }
 
     GenericButton
     {
-        width: 40
-        height: 35
-        border.width: 1
-        border.color: "#333"
+        visible: tempoType === Function.Time
+        width: height * 1.2
+        height: UISettings.iconSizeDefault
+        border.color: UISettings.bgMedium
         bgColor: buttonsBgColor
         fontSize: btnFontSize
         label: "-ms"
         repetition: true
         onClicked:
         {
-            if (msTime == 0)
+            if (timeValue == 0)
                 return
-            msTime--
+            updateTime(timeValue - 1, "")
+        }
+    }
+
+    GenericButton
+    {
+        visible: tempoType === Function.Beats
+        height: UISettings.iconSizeDefault
+        Layout.fillWidth: true
+        Layout.columnSpan: allowFractions !== Function.NoFractions ? 2 : 4
+        border.color: UISettings.bgMedium
+        bgColor: buttonsBgColor
+        fontSize: btnFontSize
+        label: "-"
+        repetition: true
+        onClicked: updateTime(timeValue - 1000, "")
+    }
+
+    GenericButton
+    {
+        visible: tempoType === Function.Beats && allowFractions !== Function.NoFractions
+        height: UISettings.iconSizeDefault
+        Layout.fillWidth: true
+        Layout.columnSpan: 2
+        border.color: UISettings.bgMedium
+        bgColor: buttonsBgColor
+        fontSize: btnFontSize
+        label: allowFractions === Function.AllFractions ? "-1/8" : "-x/2"
+        repetition: true
+        onClicked:
+        {
+            if (allowFractions === Function.AllFractions)
+            {
+                if (timeValue == 0)
+                    return
+
+                updateTime(timeValue - 125, "")
+            }
+            else
+            {
+                var tmpTime = timeValue
+                var newfraction = 0
+                if (currentFraction == 0)
+                {
+                    newfraction = 500
+                    if (tmpTime > 0)
+                        tmpTime -= 1000
+                }
+                else if (currentFraction != 125)
+                    newfraction = currentFraction / 2
+
+                updateTime(tmpTime - currentFraction + newfraction, "")
+                currentFraction = newfraction
+            }
         }
     }
 }

@@ -194,7 +194,14 @@ void FixtureTreeWidget::updateFixtureItem(QTreeWidgetItem* item, Fixture* fixtur
     if (m_addressColumn)
     {
         QString s;
-        s.sprintf("%.3d - %.3d", fixture->address() + 1, fixture->address() + fixture->channels());
+        if (fixture->channels() > 1)
+        {
+            s.sprintf("%.3d - %.3d", fixture->address() + 1, fixture->address() + fixture->channels());
+        }
+        else
+        {
+            s.sprintf("%.3d", fixture->address() + 1);
+        }
         item->setText(m_addressColumn, s);
     }
 
@@ -224,7 +231,7 @@ void FixtureTreeWidget::updateFixtureItem(QTreeWidgetItem* item, Fixture* fixtur
         for (int i = 0; i < fixture->heads(); i++)
         {
             QTreeWidgetItem* headItem = new QTreeWidgetItem(item);
-            headItem->setText(KColumnName, QString("%1 %2").arg(tr("Head")).arg(i + 1));
+            headItem->setText(KColumnName, QString("%1 %2").arg(tr("Head")).arg(i + 1, 3, 10, QChar('0')));
             headItem->setData(KColumnName, PROP_HEAD, i);
             if (m_disabledHeads.contains(GroupHead(fixture->id(), i)) == true)
             {

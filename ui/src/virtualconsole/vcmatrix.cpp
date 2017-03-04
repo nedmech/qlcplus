@@ -279,7 +279,7 @@ void VCMatrix::slotStartColorChanged(QRgb color)
 
     matrix->setStartColor(col);
     if (instantChanges() == true)
-        matrix->calculateColorDelta();
+        matrix->updateColorDelta();
 }
 
 void VCMatrix::slotEndColorChanged(QRgb color)
@@ -295,7 +295,7 @@ void VCMatrix::slotEndColorChanged(QRgb color)
 
     matrix->setEndColor(col);
     if (instantChanges() == true)
-        matrix->calculateColorDelta();
+        matrix->updateColorDelta();
 }
 
 void VCMatrix::slotAnimationChanged(QString name)
@@ -307,7 +307,7 @@ void VCMatrix::slotAnimationChanged(QString name)
     RGBAlgorithm* algo = RGBAlgorithm::algorithm(m_doc, name);
     matrix->setAlgorithm(algo);
     if (instantChanges() == true)
-        matrix->calculateColorDelta();
+        matrix->updateColorDelta();
 }
 
 void VCMatrix::setVisibilityMask(quint32 mask)
@@ -568,6 +568,8 @@ void VCMatrix::slotUpdate()
             button->setDown(on);
         }
     }
+
+    updateFeedback();
 }
 
 FunctionParent VCMatrix::functionParent() const
@@ -752,21 +754,21 @@ void VCMatrix::slotCustomControlClicked()
         {
             matrix->setStartColor(control->m_color);
             if (instantChanges() == true)
-                matrix->calculateColorDelta();
+                matrix->updateColorDelta();
             btn->setDown(true);
         }
         else if (control->m_type == VCMatrixControl::EndColor)
         {
             matrix->setEndColor(control->m_color);
             if (instantChanges() == true)
-                matrix->calculateColorDelta();
+                matrix->updateColorDelta();
             btn->setDown(true);
         }
         else if (control->m_type == VCMatrixControl::ResetEndColor)
         {
             matrix->setEndColor(QColor());
             if (instantChanges() == true)
-                matrix->calculateColorDelta();
+                matrix->updateColorDelta();
         }
         else if (control->m_type == VCMatrixControl::Animation)
         {
@@ -784,7 +786,7 @@ void VCMatrix::slotCustomControlClicked()
             }
             matrix->setAlgorithm(algo);
             if (instantChanges() == true)
-                matrix->calculateColorDelta();
+                matrix->updateColorDelta();
             btn->setDown(true);
         }
         else if (control->m_type == VCMatrixControl::Text)
@@ -794,7 +796,7 @@ void VCMatrix::slotCustomControlClicked()
             text->setText(control->m_resource);
             matrix->setAlgorithm(algo);
             if (instantChanges() == true)
-                matrix->calculateColorDelta();
+                matrix->updateColorDelta();
             btn->setDown(true);
         }
     }
@@ -818,7 +820,7 @@ void VCMatrix::slotCustomControlValueChanged()
 
             matrix->setStartColor(color);
             if (instantChanges() == true)
-                matrix->calculateColorDelta();
+                matrix->updateColorDelta();
         }
         else if (control->m_type == VCMatrixControl::EndColorKnob)
         {
@@ -828,7 +830,7 @@ void VCMatrix::slotCustomControlValueChanged()
 
             matrix->setEndColor(color);
             if (instantChanges() == true)
-                matrix->calculateColorDelta();
+                matrix->updateColorDelta();
         }
         else
         {
@@ -854,7 +856,7 @@ void VCMatrix::slotModeChanged(Doc::Mode mode)
 
 void VCMatrix::slotKeyPressed(const QKeySequence &keySequence)
 {
-    if (isEnabled() == false)
+    if (acceptsInput() == false)
         return;
 
     for (QHash<QWidget *, VCMatrixControl *>::iterator it = m_controls.begin();
@@ -899,8 +901,8 @@ void VCMatrix::updateFeedback()
 
 void VCMatrix::slotInputValueChanged(quint32 universe, quint32 channel, uchar value)
 {
-    /* Don't let input data thru in design mode */
-    if (mode() == Doc::Design || isEnabled() == false)
+    /* Don't let input data through in design mode or if disabled */
+    if (acceptsInput() == false)
         return;
 
     quint32 pagedCh = (page() << 16) | channel;

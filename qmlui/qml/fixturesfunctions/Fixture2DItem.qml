@@ -33,7 +33,7 @@ Rectangle
 
     color: "#2A2A2A"
     border.width: isSelected ? 2 : 1
-    border.color: isSelected ? (isDragging ? "#00FF00" : UISettings.selection) : (isDragging ? "#00FF00" : "#AAA")
+    border.color: isSelected ? UISettings.selection : UISettings.fgLight
 
     Drag.active: fxMouseArea.drag.active
 
@@ -93,9 +93,24 @@ Rectangle
         headsRepeater.itemAt(headIndex).headLevel = intensity
     }
 
-    function setHeadColor(headIndex, color)
+    function setHeadRGBColor(headIndex, color)
     {
         headsRepeater.itemAt(headIndex).headColor = color
+    }
+
+    function setHeadWhite(headIndex, level)
+    {
+        headsRepeater.itemAt(headIndex).whiteLevel = level / 255
+    }
+
+    function setHeadAmber(headIndex, level)
+    {
+        headsRepeater.itemAt(headIndex).amberLevel = level / 255
+    }
+
+    function setHeadUV(headIndex, level)
+    {
+        headsRepeater.itemAt(headIndex).uvLevel = level / 255
     }
 
     function setPosition(pan, tilt)
@@ -255,19 +270,18 @@ Rectangle
         y: parent.height + 2
         x: -10
         width: parent.width + 20
-        height: 28
+        height: UISettings.listItemHeight
         color: "#444"
         visible: showLabel
 
         RobotoText
         {
-            width: parent.width
-            height: parent.height
+            anchors.fill: parent
             label: fixtureName
             //labelColor: "black"
-            fontSize: 8
+            fontSize: UISettings.textSizeDefault / 2
             wrapText: true
-            textAlign: Text.AlignHCenter
+            textHAlign: Text.AlignHCenter
         }
     }
 
@@ -278,15 +292,29 @@ Rectangle
         hoverEnabled: true
         preventStealing: false
 
+        drag.threshold: 10 //UISettings.iconSizeDefault
+
         onEntered: fixtureLabel.visible = true
         onExited: showLabel ? fixtureLabel.visible = true : fixtureLabel.visible = false
 
-        onPressAndHold:
+        onPressed:
         {
-            drag.target = fixtureItem
-            isDragging = true
-            console.log("drag started");
+            isSelected = !isSelected
+            contextManager.setFixtureSelection(fixtureID, isSelected)
         }
+
+        onPositionChanged:
+        {
+            if (!fxMouseArea.pressed)
+                return
+
+            if (drag.target == null)
+            {
+                drag.target = fixtureItem
+                isSelected = true
+            }
+        }
+
         onReleased:
         {
             if (drag.target !== null)
@@ -294,15 +322,9 @@ Rectangle
                 console.log("drag finished");
                 mmXPos = (fixtureItem.x * gridUnits) / gridCellSize;
                 mmYPos = (fixtureItem.y * gridUnits) / gridCellSize;
-                contextManager.setFixturePosition(fixtureID, mmXPos, mmYPos)
+                contextManager.setFixturePosition(fixtureID, mmXPos, mmYPos, 0)
                 drag.target = null
-                isDragging = false
             }
-        }
-        onClicked:
-        {
-            isSelected = !isSelected
-            contextManager.setFixtureSelection(fixtureID, isSelected)
         }
     }
 }

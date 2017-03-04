@@ -32,7 +32,7 @@ Rectangle
     property int visibleWidth
     property real visibleX
     property int duration: -1
-    property int headerHeight: 40
+    property int headerHeight: UISettings.iconSizeMedium
     property int cursorHeight: 0
     property real timeScale: 1.0
     property int currentTime: showManager.currentTime
@@ -55,7 +55,7 @@ Rectangle
           * is the visible one, the 1st chunk is for scrolling left and the 3rd chunk
           * for scrolling right.
           * Here, it is necessary to monitor the Flickable scroll position to properly
-          * shift and render the Canvas, so 2 actions have to be taken.
+          * shift and render the Canvas.
           */
 
         if (visibleX < timeHeader.x + visibleWidth || visibleX > timeHeader.x + (visibleWidth * 2))
@@ -116,6 +116,7 @@ Rectangle
     Canvas
     {
         id: timeHeader
+        x: -visibleWidth
         width: visibleWidth * 3
         height: headerHeight
         antialiasing: true
@@ -123,8 +124,6 @@ Rectangle
         // tick size is the main time divider
         // on a timeScale equal to 1.0 it is 100 pixels
         property real tickSize: 100
-
-        Component.onCompleted: x = -visibleWidth
 
         function calculateTickSize()
         {
@@ -134,12 +133,13 @@ Rectangle
         onPaint:
         {
             var ctx = timeHeader.getContext('2d')
+            var fontSize = headerHeight * 0.55
             ctx.globalAlpha = 1.0
             ctx.lineWidth = 1
 
             ctx.fillStyle = "black"
             ctx.strokeStyle = "white"
-            ctx.font = '14px "Roboto Condensed"'
+            ctx.font = fontSize + "px \"" + UISettings.robotoFontName + "\""
             ctx.fillRect(0, 0, width, headerHeight)
 
             var divNum = width / tickSize
@@ -160,7 +160,7 @@ Rectangle
                     ctx.moveTo(xPos, 0)
                     ctx.lineTo(xPos, height)
 
-                    ctx.fillText(TimeUtils.msToString(msTime), xPos + 3, height - 20)
+                    ctx.fillText(TimeUtils.msToString(msTime), xPos + 3, height - fontSize)
                 }
                 xPos -= tickSize
                 msTime -= timeScale * 1000

@@ -23,18 +23,21 @@ import QtQuick 2.0
 
 QtObject
 {
+    property string robotoFontName: "Roboto Condensed"
     /* Colors */
     property color bgMain:     "#303030"
     property color bgStronger: "#161616"
     property color bgStrong:   "#232323"
     property color bgMedium:   "#333"
+    property color bgControl:  "#444"
     property color bgLight:    "#5F5F5F"
     property color bgLighter:  "#8F8F8F"
 
     property color fgMain:   "white"
     property color fgMedium: "#888"
+    property color fgLight:  "#aaa"
 
-    property color sectionHeader:    "#555"
+    property color sectionHeader:    "#31456B"
     property color highlight:        "#0978FF"
     property color highlightPressed: "#044089"
     property color hover:            "#B6B6B6"
@@ -48,7 +51,11 @@ QtObject
     property color toolbarSelectionSub:  "yellow"
 
     /* Sizes */
-    property int textSizeDefault: 16
-    property int iconSizeDefault: 40 // more or less the size of a finger
-    property int iconSizeMedium: 34
+    property int  textSizeDefault:  screenPixelDensity * 4.5
+    property real iconSizeDefault:  screenPixelDensity * 10 // more or less the size of a finger
+    property real iconSizeMedium:   screenPixelDensity * 8
+    property real listItemHeight:   screenPixelDensity * 7
+    property real mediumItemHeight: screenPixelDensity * 15
+    property real bigItemHeight:    screenPixelDensity * 25
+    property real scrollBarWidth:   screenPixelDensity * 6
 }

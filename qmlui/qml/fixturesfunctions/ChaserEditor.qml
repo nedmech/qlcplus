@@ -22,6 +22,7 @@ import QtQuick.Layouts 1.1
 import QtQuick.Controls 1.2
 
 import com.qlcplus.classes 1.0
+import "TimeUtils.js" as TimeUtils
 import "."
 
 Rectangle
@@ -31,34 +32,95 @@ Rectangle
     color: "transparent"
 
     property int functionID: -1
-    // the index of the step currently being edited
-    property int timeEditStepIndex: -1
-    // the type of time editing currently being performed
-    property string timeEditType: ""
+    property int editStepIndex: -1
+    property int editStepType
 
     signal requestView(int ID, string qmlSrc)
 
+    function editStepTime(stepIndex, stepItem, type)
+    {
+        var title, timeValueString
+
+        cStepsList.currentIndex = stepIndex
+
+        if (stepItem.isSelected === false)
+            ceSelector.selectItem(stepIndex, cStepsList.model, false)
+
+        editStepIndex = stepIndex
+        editStepType = type
+
+        timeEditTool.tempoType = chaserEditor.tempoType
+        timeEditTool.indexInList = stepIndex
+
+        if (type === Function.FadeIn)
+        {
+            title = "#" + (stepIndex + 1) + " " + fInCol.label
+            timeValueString = stepItem.stepFadeIn
+            timeEditTool.allowFractions = Function.AllFractions
+        }
+        else if (type === Function.Hold)
+        {
+            title = "#" + (stepIndex + 1) + " " + holdCol.label
+            timeValueString = stepItem.stepHold
+            timeEditTool.allowFractions = Function.NoFractions
+        }
+        else if (type === Function.FadeOut)
+        {
+            title = "#" + (stepIndex + 1) + " " + fOutCol.label
+            timeValueString = stepItem.stepFadeOut
+            timeEditTool.allowFractions = Function.AllFractions
+        }
+        else if (type === Function.Duration)
+        {
+            title = "#" + (stepIndex + 1) + " " + durCol.label
+            timeValueString = stepItem.stepDuration
+            timeEditTool.allowFractions = Function.NoFractions
+        }
+
+        timeEditTool.show(-1, stepItem.mapToItem(mainView, 0, 0).y, title, timeValueString, type)
+    }
 
     ModelSelector
     {
         id: ceSelector
-
-        onItemsCountChanged:
-        {
-            console.log("Chaser Editor selected items changed !")
-        }
+        onItemsCountChanged: console.log("Chaser Editor selected items changed !")
     }
 
     TimeEditTool
     {
         id: timeEditTool
-        //parent: mainView
+        parent: mainView
+        x: rightSidePanel.x - width
         z: 99
         visible: false
 
-        onTimeValueChanged:
+        onValueChanged: chaserEditor.setStepSpeed(indexInList, val, speedType)
+        onClosed: editStepIndex = -1
+        onTabPressed:
         {
+            var typeArray = [ Function.FadeIn, Function.Hold, Function.FadeOut, Function.Duration ]
+            var currType = editStepType + (forward ? 1 : -1)
 
+            if (currType < 0)
+            {
+                // need to select the previous step
+                if (cStepsList.currentIndex > 0)
+                {
+                    cStepsList.currentIndex--
+                    editStepTime(cStepsList.currentIndex, cStepsList.currentItem, Function.Duration)
+                }
+            }
+            else if (currType >= typeArray.length)
+            {
+                // need to select the next step
+                cStepsList.currentIndex++
+                editStepTime(cStepsList.currentIndex, cStepsList.currentItem, Function.FadeIn)
+            }
+            else
+            {
+                // same step, other field
+                editStepTime(editStepIndex, cStepsList.currentItem, currType)
+            }
         }
     }
 
@@ -91,14 +153,14 @@ Rectangle
             {
                 color: UISettings.bgMedium
                 width: parent.width
-                height: 40
+                height: UISettings.iconSizeMedium
                 z: 2
 
                 Rectangle
                 {
                     id: backBox
-                    width: 40
-                    height: 40
+                    width: UISettings.iconSizeMedium
+                    height: width
                     color: "transparent"
 
                     Image
@@ -124,6 +186,7 @@ Rectangle
                                 rightSidePanel.width = rightSidePanel.width / 2
                             }
 
+                            functionManager.setEditorFunction(-1, false)
                             requestView(-1, "qrc:/FunctionManager.qml")
                         }
                     }
@@ -132,26 +195,26 @@ Rectangle
                 {
                     id: cNameEdit
                     x: leftArrow.width + 5
-                    height: 40
+                    height: UISettings.iconSizeMedium
                     width: ceContainer.width - backBox.width - addFunc.width - removeFunc.width - 10
                     color: UISettings.fgMain
                     clip: true
-                    text: chaserEditor.chaserName
+                    text: chaserEditor.functionName
                     verticalAlignment: TextInput.AlignVCenter
-                    font.family: "Roboto Condensed"
-                    font.pixelSize: 20
+                    font.family: UISettings.robotoFontName
+                    font.pixelSize: UISettings.textSizeDefault
                     selectByMouse: true
                     Layout.fillWidth: true
 
-                    onTextChanged: chaserEditor.chaserName = text
+                    onTextChanged: chaserEditor.functionName = text
                 }
 
                 IconButton
                 {
                     id: addFunc
-                    x: parent.width - 90
+                    x: parent.width - (UISettings.iconSizeMedium * 2) - 10
                     width: height
-                    height: 38
+                    height: UISettings.iconSizeMedium - 2
                     imgSource: "qrc:/add.svg"
                     checkable: true
                     tooltip: qsTr("Add a function")
@@ -175,9 +238,9 @@ Rectangle
                 IconButton
                 {
                     id: removeFunc
-                    x: parent.width - 45
+                    x: parent.width - UISettings.iconSizeMedium - 5
                     width: height
-                    height: 38
+                    height: UISettings.iconSizeMedium - 2
                     imgSource: "qrc:/remove.svg"
                     tooltip: qsTr("Remove the selected function")
                     onClicked: {   }
@@ -188,41 +251,43 @@ Rectangle
             {
                 id: chListHeader
                 width: parent.width
-                height: 35
+                height: UISettings.listItemHeight
                 color: UISettings.bgLight
-                property int fSize: 11
+                property int fSize: UISettings.textSizeDefault * 0.75
 
                 Row
                 {
-                    height: 35
+                    height: UISettings.listItemHeight
                     spacing: 2
 
                     // Step number column
                     RobotoText
                     {
                         id: numCol
-                        width: 25
+                        width: UISettings.iconSizeMedium
+                        height: parent.height
                         label: "#"
                         wrapText: true
-                        textAlign: Text.AlignHCenter
+                        textHAlign: Text.AlignHCenter
                         fontSize: chListHeader.fSize
                     }
-                    Rectangle { height: 35; width: 1; color: UISettings.fgMedium }
+                    Rectangle { height: parent.height; width: 1; color: UISettings.fgMedium }
 
                     // Step Function name column
                     RobotoText
                     {
                         id: nameCol
-                        width: 120
+                        width: UISettings.bigItemHeight * 1.5
+                        height: parent.height
                         label: qsTr("Function")
                         wrapText: true
-                        textAlign: Text.AlignHCenter
+                        textHAlign: Text.AlignHCenter
                         fontSize: chListHeader.fSize
                     }
                     Rectangle
                     {
                         id: nameColDrag
-                        height: 35
+                        height: parent.height
                         width: 1
                         color: UISettings.fgMedium
 
@@ -250,16 +315,17 @@ Rectangle
                     RobotoText
                     {
                         id: fInCol
-                        width: 60
+                        width: UISettings.bigItemHeight * 0.5
+                        height: parent.height
                         label: qsTr("Fade In")
                         wrapText: true
-                        textAlign: Text.AlignHCenter
+                        textHAlign: Text.AlignHCenter
                         fontSize: chListHeader.fSize
                     }
                     Rectangle
                     {
                         id: fInColDrag
-                        height: 35
+                        height: parent.height
                         width: 1
                         color: UISettings.fgMedium
 
@@ -287,16 +353,17 @@ Rectangle
                     RobotoText
                     {
                         id: holdCol
-                        width: 60
+                        width: UISettings.bigItemHeight * 0.5
+                        height: parent.height
                         label: qsTr("Hold")
                         wrapText: true
-                        textAlign: Text.AlignHCenter
+                        textHAlign: Text.AlignHCenter
                         fontSize: chListHeader.fSize
                     }
                     Rectangle
                     {
                         id: holdColDrag
-                        height: 35
+                        height: parent.height
                         width: 1
                         color: UISettings.fgMedium
 
@@ -324,16 +391,17 @@ Rectangle
                     RobotoText
                     {
                         id: fOutCol
-                        width: 60
+                        width: UISettings.bigItemHeight * 0.5
+                        height: parent.height
                         label: qsTr("Fade Out")
                         wrapText: true
-                        textAlign: Text.AlignHCenter
+                        textHAlign: Text.AlignHCenter
                         fontSize: chListHeader.fSize
                     }
                     Rectangle
                     {
                         id: fOutColDrag
-                        height: 35
+                        height: parent.height
                         width: 1
                         color: UISettings.fgMedium
 
@@ -361,16 +429,17 @@ Rectangle
                     RobotoText
                     {
                         id: durCol
-                        width: 60
+                        width: UISettings.bigItemHeight * 0.5
+                        height: parent.height
                         label: qsTr("Duration")
                         wrapText: true
-                        textAlign: Text.AlignHCenter
+                        textHAlign: Text.AlignHCenter
                         fontSize: chListHeader.fSize
                     }
                     Rectangle
                     {
                         id: durColDrag
-                        height: 35
+                        height: parent.height
                         width: 1
                         color: UISettings.fgMedium
 
@@ -398,7 +467,8 @@ Rectangle
                     RobotoText
                     {
                         id: noteCol
-                        width: 200
+                        width: UISettings.bigItemHeight * 2
+                        height: parent.height
                         label: qsTr("Note")
                         fontSize: chListHeader.fSize
                         //Layout.fillWidth: true
@@ -410,23 +480,32 @@ Rectangle
             {
                 id: cStepsList
                 width: parent.width
-                height: ceContainer.height - 40 - chListHeader.height - chModes.height
+                height: ceContainer.height - UISettings.iconSizeDefault - chListHeader.height - chModes.height
                 boundsBehavior: Flickable.StopAtBounds
                 clip: true
 
                 property int dragInsertIndex: -1
+                property int playbackIndex: chaserEditor.playbackIndex
 
                 model: chaserEditor.stepsList
+
+                onPlaybackIndexChanged:
+                {
+                    if (chaserEditor.previewEnabled)
+                        ceSelector.selectItem(playbackIndex, model, 0)
+                }
+
                 delegate:
                     ChaserStepDelegate
                     {
                         width: ceContainer.width
-                        functionID: modelData.funcID
-                        stepFadeIn: modelData.fadeIn
-                        stepHold: modelData.hold
-                        stepFadeOut: modelData.fadeOut
-                        stepDuration: modelData.duration
-                        stepNote: modelData.note
+                        functionID: model.funcID
+                        isSelected: model.isSelected
+                        stepFadeIn: TimeUtils.timeToQlcString(model.fadeIn, chaserEditor.tempoType)
+                        stepHold: TimeUtils.timeToQlcString(model.hold, chaserEditor.tempoType)
+                        stepFadeOut: TimeUtils.timeToQlcString(model.fadeOut, chaserEditor.tempoType)
+                        stepDuration: TimeUtils.timeToQlcString(model.duration, chaserEditor.tempoType)
+                        stepNote: model.note
 
                         col1Width: numCol.width
                         col2Width: nameCol.width
@@ -437,47 +516,19 @@ Rectangle
 
                         indexInList: index
                         highlightIndex: cStepsList.dragInsertIndex
+                        highlightEditTime: editStepIndex === index ? editStepType : -1
 
                         onClicked:
                         {
-                            ceSelector.selectItem(ID, qItem, mouseMods & Qt.ControlModifier)
+                            ceSelector.selectItem(indexInList, cStepsList.model, mouseMods & Qt.ControlModifier)
+                            if (mouseMods & Qt.ControlModifier === false)
+                                chaserEditor.playbackIndex = index
                         }
+
                         onDoubleClicked:
                         {
                             console.log("Double clicked: " + indexInList + ", " + type)
-                            ceContainer.timeEditStepIndex = indexInList
-                            ceContainer.timeEditType = type
-
-                            if (type == "FI")
-                            {
-                                timeEditTool.x = fInCol.x - 35
-                                timeEditTool.title = fInCol.label
-                                timeEditTool.timeValueString = stepFadeIn
-                            }
-                            else if (type == "H")
-                            {
-                                timeEditTool.x = holdCol.x - 35
-                                timeEditTool.title = holdCol.label
-                                timeEditTool.timeValueString = stepHold
-                            }
-                            else if (type == "FO")
-                            {
-                                timeEditTool.x = fOutCol.x - 35
-                                timeEditTool.title = fOutCol.label
-                                timeEditTool.timeValueString = stepFadeOut
-                            }
-                            else if (type == "D")
-                            {
-                                timeEditTool.x = durCol.x - 35
-                                timeEditTool.title = durCol.label
-                                timeEditTool.timeValueString = stepDuration
-                            }
-
-
-                            timeEditTool.y = height * indexInList - cStepsList.contentY + cStepsList.y
-                            //timeEditTool.y = height * indexInList - cStepsList.contentY + cStepsList.y - 70
-                            timeEditTool.visible = true
-                            height = timeEditTool.height
+                            ceContainer.editStepTime(indexInList, this, type)
                         }
                     }
 
@@ -490,9 +541,13 @@ Rectangle
                     onDropped:
                     {
                         console.log("Item dropped here. x: " + drag.x + " y: " + drag.y)
-                        console.log("Item fID: " + drag.source.funcID)
-                        chaserEditor.addFunction(drag.source.funcID, cStepsList.dragInsertIndex)
-                        cStepsList.dragInsertIndex = -1
+
+                        /* Check if the dragging was started from a Function Manager */
+                        if (drag.source.hasOwnProperty("fromFunctionManager"))
+                        {
+                            chaserEditor.addFunctions(drag.source.itemsList, cStepsList.dragInsertIndex)
+                            cStepsList.dragInsertIndex = -1
+                        }
                     }
                     onPositionChanged:
                     {
@@ -500,6 +555,7 @@ Rectangle
                         //console.log("Item index:" + idx)
                         cStepsList.dragInsertIndex = idx
                     }
+                    onExited: cStepsList.dragInsertIndex = -1
                 }
                 ScrollBar { flickable: cStepsList }
             }
@@ -561,8 +617,24 @@ Rectangle
                         Layout.fillWidth: true
                     }
 
-                    Rectangle { height: 30; color: "transparent" }
-                    Rectangle { height: 30; color: "transparent"; Layout.fillWidth: true }
+                    IconPopupButton
+                    {
+                        ListModel
+                        {
+                            id: tempoModel
+                            ListElement { mLabel: qsTr("Time"); mTextIcon: "T"; mValue: Function.Time }
+                            ListElement { mLabel: qsTr("Beats"); mTextIcon: "B"; mValue: Function.Beats }
+                        }
+                        model: tempoModel
+
+                        currentValue: chaserEditor.tempoType
+                        onValueChanged: chaserEditor.tempoType = value
+                    }
+                    RobotoText
+                    {
+                        label: qsTr("Tempo")
+                        Layout.fillWidth: true
+                    }
 
                     // Row 2
                     IconPopupButton

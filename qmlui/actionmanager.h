@@ -25,20 +25,27 @@
 #include <QPair>
 
 class FunctionManager;
+class VirtualConsole;
 class ShowManager;
 
 class ActionManager : public QObject
 {
     Q_OBJECT
 public:
-    ActionManager() { }
-    ActionManager(QQuickView *view, FunctionManager *fManager, ShowManager *sManager, QObject *parent = 0);
+    ActionManager(QQuickView *view, FunctionManager *fManager, ShowManager *sManager,
+                  VirtualConsole *vConsole, QObject *parent = 0);
 
     enum ActionType
     {
         None,
         DeleteFunctions,
-        DeleteShowItems
+        RenameFunctions,
+        DeleteEditorItems,
+        DeleteShowItems,
+        DeleteVCPage,
+        DeleteVCWidgets,
+        SetVCPagePIN,
+        VCPagePINRequest
     };
     Q_ENUM(ActionType)
 
@@ -50,8 +57,15 @@ public:
     Q_ENUM(PopupButtonsBits)
 
     Q_INVOKABLE void requestActionPopup(ActionType type, QString message, int buttonsMask, QVariantList data);
+
+    /** Conclude the currently pending action */
     Q_INVOKABLE void acceptAction();
+
+    /** Abort the currently pending action */
     Q_INVOKABLE void rejectAction();
+
+    /** Return the data for the currently pending action */
+    Q_INVOKABLE QVariantList actionData() const;
 
 signals:
 
@@ -60,6 +74,7 @@ private:
     QQuickView *m_view;
     FunctionManager *m_functionManager;
     ShowManager *m_showManager;
+    VirtualConsole *m_virtualConsole;
 
     QPair<ActionType, QVariantList> m_deferredAction;
 };

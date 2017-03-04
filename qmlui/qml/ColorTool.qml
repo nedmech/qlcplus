@@ -25,23 +25,24 @@ import "."
 Rectangle
 {
     id: colorToolBox
-    width: 400
-    height: 430
+    width: UISettings.bigItemHeight * 3
+    height: UISettings.bigItemHeight * 3.5
     color: UISettings.bgMedium
     border.color: "#666"
     border.width: 2
 
     property bool closeOnSelect: false
+    property int colorsMask: 0
     property color selectedColor
     property string colorToolQML: "qrc:/ColorToolBasic.qml"
 
-    signal colorChanged(real r, real g, real b, real w, real a, real uv)
+    signal colorChanged(real r, real g, real b, int w, int a, int uv)
 
     Rectangle
     {
         id: colorToolBar
         width: parent.width
-        height: 32
+        height: UISettings.listItemHeight
         z: 10
         gradient:
             Gradient
@@ -54,13 +55,7 @@ Rectangle
         RowLayout
         {
             id: rowLayout1
-            //anchors.horizontalCenter: parent.horizontalCenter
-            anchors.left: parent.left
-            anchors.leftMargin: 10
-            anchors.right: parent.right
-            anchors.bottom: parent.bottom
-            anchors.top: parent.top
-
+            anchors.fill: parent
             spacing: 5
             ExclusiveGroup { id: menuBarGroup2 }
 
@@ -73,12 +68,11 @@ Rectangle
                 checkedColor: "green"
                 bgGradient: cBarGradient
                 exclusiveGroup: menuBarGroup2
+                mFontSize: UISettings.textSizeDefault
                 onCheckedChanged:
                 {
                     if (checked == true)
-                    {
                         colorToolQML = "qrc:/ColorToolBasic.qml"
-                    }
                 }
             }
 
@@ -90,12 +84,11 @@ Rectangle
                 checkedColor: "green"
                 bgGradient: cBarGradient
                 exclusiveGroup: menuBarGroup2
+                mFontSize: UISettings.textSizeDefault
                 onCheckedChanged:
                 {
                     if (checked == true)
-                    {
                         colorToolQML = "qrc:/ColorToolFull.qml"
-                    }
                 }
             }
             MenuBarEntry
@@ -106,12 +99,11 @@ Rectangle
                 checkedColor: "green"
                 bgGradient: cBarGradient
                 exclusiveGroup: menuBarGroup2
+                mFontSize: UISettings.textSizeDefault
                 onCheckedChanged:
                 {
                     if (checked == true)
-                    {
                         colorToolQML = "qrc:/ColorToolFilters.qml"
-                    }
                 }
             }
             // allow the tool to be dragged around
@@ -135,13 +127,17 @@ Rectangle
         height: parent.height - colorToolBar.height
         source: colorToolQML
 
-        onLoaded: item.selectedColor = colorToolBox.selectedColor
+        onLoaded:
+        {
+            item.colorsMask = Qt.binding(function() { return colorToolBox.colorsMask })
+            item.selectedColor = colorToolBox.selectedColor
+        }
 
         Connections
         {
              target: toolLoader.item
              ignoreUnknownSignals: true
-             onColorChanged: colorToolBox.colorChanged(r, g, b, white, amber, uv)
+             onColorChanged: colorToolBox.colorChanged(r, g, b, w, a, uv)
              onReleased: if (closeOnSelect) colorToolBox.visible = false
         }
         /*

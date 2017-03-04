@@ -127,7 +127,7 @@ public:
     QIcon getIcon() const;
 
     /** Get the channel's icon resource name */
-    QString getIconNameFromGroup(QLCChannel::Group grp) const;
+    QString getIconNameFromGroup(QLCChannel::Group grp, bool svg = false) const;
 
 private:
     QPixmap drawIntensity(QColor color, QString str) const;
@@ -136,7 +136,7 @@ private:
     QIcon getIntensityIcon() const;
 
     /** Get the intensity channel color name */
-    QString getIntensityColorCode() const;
+    QString getIntensityColorCode(bool svg = false) const;
 
 protected:
     Group m_group;
@@ -183,7 +183,8 @@ public:
         Amber       = 0xFF7E00,
         White       = 0xFFFFFF,
         UV          = 0x9400D3,
-        Lime        = 0xADFF2F
+        Lime        = 0xADFF2F,
+        Indigo      = 0x4B0082
     };
 
     /** Get a list of possible channel groups */

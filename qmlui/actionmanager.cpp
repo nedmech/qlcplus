@@ -22,13 +22,15 @@
 #include "actionmanager.h"
 
 #include "functionmanager.h"
+#include "virtualconsole.h"
 #include "showmanager.h"
 
-ActionManager::ActionManager(QQuickView *view, FunctionManager *fManager, ShowManager *sManager, QObject *parent)
+ActionManager::ActionManager(QQuickView *view, FunctionManager *fManager, ShowManager *sManager, VirtualConsole *vConsole, QObject *parent)
     : QObject(parent)
     , m_view(view)
     , m_functionManager(fManager)
     , m_showManager(sManager)
+    , m_virtualConsole(vConsole)
 {
 
 }
@@ -42,14 +44,17 @@ void ActionManager::requestActionPopup(ActionManager::ActionType type, QString m
         return;
     }
 
-    qDebug() << "[ActionManager] buttonsMask:" << buttonsMask << data;
-
-    popupItem->setProperty("message", message);
-    popupItem->setProperty("buttonsMask", buttonsMask);
-
     // save the requested action to be processed when the user
     // confirms or rejects from the popup
     m_deferredAction = QPair<ActionType, QVariantList> (type, data);
+
+    qDebug() << "[ActionManager] buttonsMask:" << buttonsMask << data;
+
+    if (message.startsWith("qrc:"))
+        popupItem->setProperty("resource", message);
+    else
+        popupItem->setProperty("message", message);
+    popupItem->setProperty("buttonsMask", buttonsMask);
 
     popupItem->setProperty("visible", true);
 }
@@ -65,14 +70,22 @@ void ActionManager::acceptAction()
     switch(action)
     {
         case DeleteFunctions:
-        {
             m_functionManager->deleteFunctions(data);
-        }
+        break;
+        case DeleteEditorItems:
+            m_functionManager->deleteEditorItems(data);
         break;
         case DeleteShowItems:
-        {
             m_showManager->deleteShowItems(data);
-        }
+        break;
+        case DeleteVCPage:
+            m_virtualConsole->deletePage(data.first().toInt());
+        break;
+        case DeleteVCWidgets:
+            m_virtualConsole->deleteVCWidgets(data);
+        break;
+        case VCPagePINRequest:
+            m_virtualConsole->setSelectedPage(data.first().toInt());
         break;
         default: break;
     }
@@ -85,5 +98,10 @@ void ActionManager::rejectAction()
 {
     // invalidate the current action
     m_deferredAction = QPair<ActionType, QVariantList> (None, QVariantList());
+}
+
+QVariantList ActionManager::actionData() const
+{
+    return m_deferredAction.second;
 }
 

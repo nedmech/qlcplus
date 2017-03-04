@@ -854,6 +854,7 @@ void VCXYPadFixture_Test::write16bitReverse()
     QList<Universe*> ua;
     ua.append(new Universe(0, new GrandMaster()));
 
+#ifdef Q_PROCESSOR_X86_64
     for (qreal i = 0; i <= 1.01; i += (qreal(1) / qreal(USHRT_MAX)))
     {
         xy.writeDMX(i, 1.0 - i, ua);
@@ -875,6 +876,7 @@ void VCXYPadFixture_Test::write16bitReverse()
         QCOMPARE(ua[0]->preGMValues()[2], char(y >> 8));
         QCOMPARE(ua[0]->preGMValues()[3], char(y & 0xFF));
     }
+#endif
 }
 
 void VCXYPadFixture_Test::writeRange()
@@ -908,8 +910,8 @@ void VCXYPadFixture_Test::writeRange()
     xy.arm();
 
     // Handle on the left
-    qreal xmul = 0;
-    qreal ymul = 0;
+    qreal xmul = 0.0;
+    qreal ymul = 0.0;
 
     xy.writeDMX(xmul, ymul, ua);
     QCOMPARE((int)ua[0]->preGMValue(0), valueAt0);
@@ -968,26 +970,29 @@ void VCXYPadFixture_Test::readRange()
     VCXYPadFixture xy(m_doc);
     xy.setHead(GroupHead(fxi->id(), 0));
     xy.setX(rangeMin, rangeMax, reverse);
-    xy.setY(0, 1, false);
+    xy.setY(0.0, 1.0, false);
     xy.arm();
 
+    qreal const rangeWidth = rangeMax - rangeMin;
+    qreal const rangeStep = 1.0/rangeWidth;
+
     // Handle on the left
-    qreal xmul = 0;
-    qreal ymul = 0;
+    qreal xmul = 0.0;
+    qreal ymul = 0.0;
 
     ua[0]->write(0, valueAt0);
     xy.readDMX(ua, xmul, ymul);
     // the value was scaled to interval rangeMax-rangeMin,
     // so the resolution is less than 1/that range
     // here the value should be near zero
-    QVERIFY(xmul < 1.0/(rangeMax-rangeMin));
+    QVERIFY(xmul < rangeStep);
 
     // handle on the right
     ua[0]->write(0, valueAt1);
     xy.readDMX(ua, xmul, ymul);
     // again, the resolution depends on the range.
     // here the value should be near one
-    QVERIFY(xmul > (rangeMax-rangeMin-1)/(rangeMax-rangeMin));
+    QVERIFY(xmul > (rangeWidth - rangeStep));
 }
 
 void VCXYPadFixture_Test::readRange_data()
